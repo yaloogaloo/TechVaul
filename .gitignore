@@ -1,0 +1,40 @@
+# Local environment. Recreate with the project interpreter; do not upload it.
+.venv/
+venv/
+env/
+
+# Bytecode and test caches.
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Packaging output.
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Archive root only when it sits at the repository root.
+# src/techvault/archive/ is source and must stay tracked.
+/archive/
+
+# Local databases, credentials, and logs.
+*.sqlite
+*.sqlite3
+*.db
+.env
+.env.*
+*.log
+
+# Editor and OS clutter.
+.idea/
+.vscode/
+Thumbs.db
+Desktop.ini
+.DS_Store
