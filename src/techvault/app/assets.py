@@ -114,6 +114,12 @@ def _public_message(message: str | None) -> str:
     if not text:
         return "保存没有完成。"
     lowered = text.replace("\\", "/").lower()
-    if ":/" in text or lowered.startswith("/") or "repositories/" in lowered or len(text) > 180:
+    if (
+        ":/" in text
+        or lowered.startswith("/")
+        or "repositories/" in lowered
+        or "github/" in lowered
+        or len(text) > 180
+    ):
         return "保存没有完成。"
     return text

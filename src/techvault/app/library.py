@@ -12,6 +12,7 @@ from pathlib import Path
 from techvault.app.assets import AssetRecord, load_asset_records
 from techvault.archive.identity import resolve_stored_path
 from techvault.archive.paths import PathLayout
+from techvault.archive.storage import repository_dir_for
 from techvault.errors import DatabaseError
 
 
@@ -374,7 +375,11 @@ class LibraryService:
             offline_built_at=built_at,
             offline_absolute=offline_absolute,
             archive_folder=str(
-                PathLayout(folder_root).repository_root(row["owner"], row["name"], int(row["github_repo_id"]))
+                repository_dir_for(
+                    self._connection,
+                    PathLayout(folder_root),
+                    repository_id=int(row["id"]),
+                )
             ),
             github_repo_id=int(row["github_repo_id"]),
             last_job_status=operation or "",
@@ -398,7 +403,13 @@ class LibraryService:
             (repository_id,),
         ).fetchone()
         root = Path(page["archive_root"]) if page is not None and page["archive_root"] else _settings_root(self._connection)
-        markdown_path = PathLayout(root).readme_file(detail.owner, detail.name, detail.github_repo_id)
+        layout = PathLayout(root)
+        repo_root = repository_dir_for(self._connection, layout, repository_id=repository_id)
+        markdown_path = layout.readme_file_at(repo_root)
+        # V1 compat: readme/README.md under repositories/<id>/
+        v1_readme = layout.v1_repository_dir(detail.github_repo_id) / "readme" / "README.md"
+        if not markdown_path.is_file() and v1_readme.is_file():
+            markdown_path = v1_readme
         if markdown_path.is_file():
             try:
                 return ("markdown", markdown_path.read_text(encoding="utf-8"), str(markdown_path.parent))

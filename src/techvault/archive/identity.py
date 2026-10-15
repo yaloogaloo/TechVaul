@@ -23,7 +23,8 @@ def adopt_legacy_tree(
     name: str,
     github_repo_id: int,
 ) -> None:
-    stable = layout.repository_dir(owner, name, github_repo_id)
+    # Pre-V2 adoption: owner/name__id → repositories/<github_repo_id>
+    stable = layout.v1_repository_dir(github_repo_id)
     legacy = layout.legacy_repository_dir(owner, name, github_repo_id)
     if not legacy.is_dir() or stable.exists():
         return

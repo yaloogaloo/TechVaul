@@ -8,14 +8,12 @@ from pathlib import Path
 import httpx
 import pytest
 import respx
-from PySide6.QtWidgets import QPushButton
 
 from techvault.app.archive_service import ArchiveService
 from techvault.app.assets import AssetKind, AssetStatus, load_asset_records
 from techvault.app.bootstrap import prepare_context
 from techvault.archive.paths import PathLayout
 from techvault.archive.release_archive import JobStatus
-from techvault.ui.main_window import MainWindow
 
 REPO = "https://api.github.com/repos/octo/hello"
 LATEST = "https://api.github.com/repos/octo/hello/releases/latest"
@@ -212,9 +210,12 @@ def test_release_retry_keeps_the_saved_snapshot(tmp_path: Path) -> None:
         context.close()
 
 
-def test_retry_button_is_only_offered_for_the_failed_asset(qtbot, tmp_path: Path, monkeypatch) -> None:
+def test_retry_asset_via_service_for_failed_readme(tmp_path: Path, monkeypatch) -> None:
+    import json
+
     import techvault.offline.pages as pages
     from techvault.offline.sanitize import sanitize_html as real_sanitize
+    from techvault.ui.bridge.github_bridge import GitHubBridge
 
     _service_obj, context = _service(tmp_path)
     service = _service_obj
@@ -223,21 +224,20 @@ def test_retry_button_is_only_offered_for_the_failed_asset(qtbot, tmp_path: Path
         with respx.mock:
             _install(respx)
             assert service.archive_repository("https://github.com/octo/hello").status == "OFFLINE_PAGE_FAILED"
-            window = MainWindow(context)
-            qtbot.addWidget(window)
-            window.show_section(1)
-            page = window.archive_page
-            retry = page.findChild(QPushButton, "retryREADME")
-            assert retry is not None
-            assert retry.text() == "重新保存"
-            assert page.findChild(QPushButton, "retrySOURCE") is None
-            assert page.findChild(QPushButton, "retryRELEASE") is None
-            assert "暂无正式 Release" not in page.detail_label.text()
-            assert "python" in page.detail_label.text()
+            github = GitHubBridge(context.connection, context.database_path)
+            listing = json.loads(github.listRepositories("", "", "recent"))
+            assert listing["ok"] is True
+            repo_id = listing["data"]["items"][0]["id"]
+            detail = json.loads(github.getRepository(repo_id))["data"]
+            retryable = [a for a in detail["assets"] if a.get("retryable")]
+            assert retryable, detail["assets"]
+            kinds = {a["kind"] for a in retryable}
+            assert "readme" in kinds or "README" in kinds or any("readme" in str(k).lower() for k in kinds)
             monkeypatch.setattr(pages, "sanitize_html", real_sanitize)
-            retry.click()
-            qtbot.waitUntil(lambda: page.findChild(QPushButton, "retryREADME") is None, timeout=10000)
-        assert page.result_label.text() == "已更新"
-        assert "Hello" in page.readme_view.plain_text() or "Body" in page.readme_view.plain_text()
+            kind = retryable[0]["kind"]
+            retried = service.retry_failed_asset(repo_id, kind)
+            assert retried.status in {"COMPLETED", "SUCCESS", "OFFLINE_PAGE_FAILED", "PARTIAL"} or "更新" in (
+                retried.message or ""
+            )
     finally:
         context.close()

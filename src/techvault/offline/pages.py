@@ -10,6 +10,7 @@ from pathlib import Path
 
 from techvault.archive.downloader import FileState
 from techvault.archive.paths import PathLayout
+from techvault.archive.storage import repository_dir_for
 from techvault.errors import UnsafePathError
 from techvault.github.client import GitHubClient
 from techvault.logging_setup import get_logger
@@ -67,7 +68,7 @@ def build_offline_pages(
 
     readme_html, readme_failure = _readme_fragment(client, repository["owner"], repository["name"])
     if readme_failure is None and readme_html.strip():
-        _store_readme_markdown(client, layout, repository)
+        _store_readme_markdown(connection, client, layout, repository)
     body_html, markdown_failure = _release_fragment(client, repository, release)
     readme_html, readme_media = _prepare_fragment(
         connection,
@@ -88,12 +89,13 @@ def build_offline_pages(
         after_stream,
     )
     built_at = _now()
+    repo_root = repository_dir_for(connection, layout, repository_id=int(repository["id"]))
     index_ok = _publish(
         connection,
         layout,
         repository,
         page_ids[REPOSITORY],
-        layout.page_index(repository["owner"], repository["name"], int(repository["github_repo_id"])),
+        layout.page_index_at(repo_root),
         _repository_document(repository, release, readme_html, built_at),
         readme_media,
         readme_failure,
@@ -104,7 +106,7 @@ def build_offline_pages(
         layout,
         repository,
         page_ids[RELEASE],
-        layout.page_release(repository["owner"], repository["name"], int(repository["github_repo_id"])),
+        layout.page_release_at(repo_root),
         _release_document(connection, layout, repository, release, body_html, built_at),
         release_media,
         markdown_failure,
@@ -160,12 +162,8 @@ def _fetch_image(
     )
     asset_id = int(cursor.lastrowid)
     try:
-        final = layout.page_media_file(
-            repository["owner"],
-            repository["name"],
-            int(repository["github_repo_id"]),
-            media_filename(url),
-        )
+        repo_root = repository_dir_for(connection, layout, repository_id=int(repository["id"]))
+        final = layout.page_media_file_at(repo_root, media_filename(url))
     except UnsafePathError as exc:
         _finish_asset(connection, asset_id, PageStatus.FAILED, None, None, None, "UNSAFE_PATH", exc.message)
         return None
@@ -233,6 +231,7 @@ def _finish_asset(
 
 
 def _store_readme_markdown(
+    connection: sqlite3.Connection,
     client: GitHubClient,
     layout: PathLayout,
     repository: sqlite3.Row,
@@ -244,11 +243,8 @@ def _store_readme_markdown(
         return
     if text is None or text.strip() == "":
         return
-    final_path = layout.readme_file(
-        repository["owner"],
-        repository["name"],
-        int(repository["github_repo_id"]),
-    )
+    repo_root = repository_dir_for(connection, layout, repository_id=int(repository["id"]))
+    final_path = layout.readme_file_at(repo_root)
     part = layout.part_file(f"readme{int(repository['id'])}", int(repository["id"]))
     part.parent.mkdir(parents=True, exist_ok=True)
     with part.open("w", encoding="utf-8", newline="\n") as handle:
@@ -416,7 +412,8 @@ def _file_list(
         """,
         (release["id"],),
     ).fetchall()
-    page = layout.page_release(repository["owner"], repository["name"], int(repository["github_repo_id"]))
+    repo_root = repository_dir_for(connection, layout, repository_id=int(repository["id"]))
+    page = layout.page_release_at(repo_root)
     items: list[str] = []
     for row in rows:
         label = _file_label(row["kind"], row["name"])

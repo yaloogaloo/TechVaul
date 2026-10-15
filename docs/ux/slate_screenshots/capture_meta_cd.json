@@ -1,0 +1,26 @@
+{
+  "captured_at": "2026-10-14T16:46:38.336069+00:00",
+  "mode": "stage-cd-isolated",
+  "platform": "Windows-10-10.0.26200-SP0",
+  "python": "3.11.9",
+  "database": "C:\\Users\\king\\AppData\\Local\\Temp\\techvault-slate-cd-_plr098v\\techvault.sqlite",
+  "archive_root": "C:\\Users\\king\\AppData\\Local\\Temp\\techvault-slate-cd-_plr098v\\archive",
+  "logical_dpi": 96.0,
+  "device_pixel_ratio": 1.25,
+  "method": "QWidget.grab via tools/slate_capture_cd.py",
+  "screenshots": [
+    "D:\\project\\TechVault\\docs\\ux\\slate_screenshots\\cd_github_regression_1440x900.png",
+    "D:\\project\\TechVault\\docs\\ux\\slate_screenshots\\cd_knowledge_read_1686x896.png",
+    "D:\\project\\TechVault\\docs\\ux\\slate_screenshots\\cd_knowledge_read_1440x900.png",
+    "D:\\project\\TechVault\\docs\\ux\\slate_screenshots\\cd_knowledge_960x640.png",
+    "D:\\project\\TechVault\\docs\\ux\\slate_screenshots\\cd_knowledge_pagination_50plus.png",
+    "D:\\project\\TechVault\\docs\\ux\\slate_screenshots\\cd_knowledge_edit_1440x900.png",
+    "D:\\project\\TechVault\\docs\\ux\\slate_screenshots\\cd_knowledge_dirty_guard.png",
+    "D:\\project\\TechVault\\docs\\ux\\slate_screenshots\\cd_knowledge_long_doc.png",
+    "D:\\project\\TechVault\\docs\\ux\\slate_screenshots\\cd_knowledge_empty.png",
+    "D:\\project\\TechVault\\docs\\ux\\slate_screenshots\\cd_settings_1440x900.png",
+    "D:\\project\\TechVault\\docs\\ux\\slate_screenshots\\cd_settings_960x640.png",
+    "D:\\project\\TechVault\\docs\\ux\\slate_screenshots\\cd_settings_token_dialog.png"
+  ],
+  "dpi_150": "NOT VERIFIED"
+}

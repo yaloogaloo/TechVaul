@@ -1,0 +1,41 @@
+{
+  "captured_at": "2026-10-14T11:15:11.343751+00:00",
+  "platform": "Windows-10-10.0.26200-SP0",
+  "python": "3.11.9",
+  "pyside6": "6.11.2",
+  "qt": "6.11.2",
+  "logical_dpi": 96.0,
+  "device_pixel_ratio": 1.25,
+  "screen_geometry": [
+    0,
+    0,
+    1536,
+    864
+  ],
+  "method": "QWidget.grab() PNG via prototypes/github_workspace/capture.py",
+  "note": "device_pixel_ratio reflects Qt device pixel ratio (1.0≈100%, 1.25≈125%, 1.5≈150% Windows scale). 150% not captured in this session unless DPR reports 1.5.",
+  "screenshots": [
+    "D:\\project\\TechVault\\docs\\ux\\screenshots\\01_widescreen_normal.png",
+    "D:\\project\\TechVault\\docs\\ux\\screenshots\\02_default_1440x900.png",
+    "D:\\project\\TechVault\\docs\\ux\\screenshots\\03_minimum_960x640.png",
+    "D:\\project\\TechVault\\docs\\ux\\screenshots\\04_long_readme_widescreen.png",
+    "D:\\project\\TechVault\\docs\\ux\\screenshots\\05_update_failed_dual_status.png",
+    "D:\\project\\TechVault\\docs\\ux\\screenshots\\06_task_running.png",
+    "D:\\project\\TechVault\\docs\\ux\\screenshots\\07_empty_state.png",
+    "D:\\project\\TechVault\\docs\\ux\\screenshots\\08_archive_history_tab.png"
+  ],
+  "window_sizes": {
+    "widescreen": [
+      1686,
+      896
+    ],
+    "default": [
+      1440,
+      900
+    ],
+    "minimum": [
+      960,
+      640
+    ]
+  }
+}

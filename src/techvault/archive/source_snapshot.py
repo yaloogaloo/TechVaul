@@ -13,6 +13,7 @@ from techvault.archive.downloader import DownloadRequest, FileState, download_re
 from techvault.archive.paths import PathLayout
 from techvault.archive.progress import TransferPlan
 from techvault.archive.release_archive import JobStatus
+from techvault.archive.storage import repository_dir_for
 from techvault.github.client import API_BASE, GitHubClient
 
 
@@ -57,11 +58,14 @@ def archive_source_snapshot(
         _close_snapshot(connection, snapshot_id, job_id, JobStatus.CANCELLED, None, "已取消")
         return JobStatus.CANCELLED
 
-    final_path = layout.snapshot_source_file(
-        repository["owner"],
-        repository["name"],
-        int(repository["github_repo_id"]),
+    repo_root = repository_dir_for(connection, layout, repository_id=repository_id)
+    branch = repository["default_branch"] or "HEAD"
+    final_path = layout.snapshot_source_file_at(
+        repo_root,
         snapshot_id,
+        branch=branch,
+        commit_sha=None,
+        when=datetime.now(timezone.utc),
     )
     url = _zipball_url(repository["owner"], repository["name"], repository["default_branch"])
     request = DownloadRequest(

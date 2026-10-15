@@ -9,18 +9,14 @@ from pathlib import Path
 import httpx
 import pytest
 import respx
-from PySide6.QtCore import QUrl
-from PySide6.QtGui import QDesktopServices
-
 from techvault.app.archive_service import ArchiveService
 from techvault.app.bootstrap import prepare_context
 from techvault.app.library import LibraryService
 from techvault.app.recovery import INTERRUPTED, recover_interrupted_archives
 from techvault.archive.identity import adopt_legacy_tree
 from techvault.archive.paths import PathLayout
-from techvault.archive.progress import ProgressEvent
 from techvault.archive.release_archive import JobStatus
-from techvault.ui.main_window import MainWindow
+from techvault.ui.bridge.github_bridge import GitHubBridge
 
 REPO = "https://api.github.com/repos/octo/hello"
 LATEST = "https://api.github.com/repos/octo/hello/releases/latest"
@@ -280,9 +276,16 @@ def test_rename_keeps_one_repository_and_the_old_snapshot(tmp_path: Path) -> Non
         assert stored["github_repo_id"] == 50
         assert stored["name"] == "baz"
         assert old_file.read_bytes() == b"bar-bytes"
-        folder = PathLayout(tmp_path / "archive").repository_dir("foo", "baz", 50)
-        assert folder == tmp_path / "archive" / "repositories" / "50"
+        # Rename must not relocate the bound folder (storage_relpath stays on first write).
+        from techvault.archive.storage import repository_dir_for
+
+        folder = repository_dir_for(context.connection, PathLayout(tmp_path / "archive"), repository_id=1)
+        assert folder == tmp_path / "archive" / "github" / "foo" / "bar"
         assert old_file.is_relative_to(folder)
+        rel = context.connection.execute(
+            "SELECT storage_relpath FROM repositories WHERE id = 1"
+        ).fetchone()[0]
+        assert rel.replace("\\", "/") == "github/foo/bar"
         other = PathLayout(tmp_path / "archive").repository_dir("foo", "unrelated", 99)
         assert other != folder
         assert not other.exists()
@@ -311,7 +314,9 @@ def test_archive_root_change_keeps_old_files_addressable(tmp_path: Path) -> None
         assert Path(detail.offline_absolute).is_relative_to(root_a)
         assert Path(detail.archive_folder).is_dir()
         assert Path(detail.archive_folder).is_relative_to(root_a)
-        assert b"rooted" in list(Path(detail.archive_folder).rglob("source-code.zip"))[0].read_bytes()
+        zips = list(Path(detail.archive_folder).rglob("*.zip"))
+        assert zips, "expected a source snapshot zip under the archive folder"
+        assert b"rooted" in zips[0].read_bytes()
         restarted.close()
     except Exception:
         if context.connection:
@@ -407,7 +412,8 @@ def test_legacy_owner_directory_moves_under_the_repository_id(tmp_path: Path) ->
             name="bar",
             github_repo_id=50,
         )
-        stable = layout.repository_dir("foo", "baz", 50)
+        # Pre-V2 adoption lands under repositories/<github_repo_id>/ (V1 tree).
+        stable = layout.v1_repository_dir(50)
         assert (stable / "source" / "1" / "source-code.zip").read_bytes() == b"legacy"
         assert not legacy.exists()
         stored = context.connection.execute("SELECT relative_path FROM source_snapshots").fetchone()[0]
@@ -417,127 +423,47 @@ def test_legacy_owner_directory_moves_under_the_repository_id(tmp_path: Path) ->
         context.close()
 
 
-def test_selection_search_and_progress_use_the_selected_repository(qtbot, tmp_path: Path) -> None:
+def test_selection_search_and_category_filter_via_library(tmp_path: Path) -> None:
+    import json
+
     context = prepare_context(tmp_path / "db.sqlite", tmp_path / "archive")
-    host = MainWindow(context)
-    qtbot.addWidget(host)
-    host.show()
-    page = host.archive_page
-    assert page.empty_label.text() == "还没有项目"
-    event = ProgressEvent(
-        job_id=1,
-        file_id=1,
-        current_file="source-code.zip",
-        downloaded_bytes=10,
-        expected_bytes=10,
-        overall_downloaded_bytes=10,
-        overall_expected_bytes=10,
-        percentage=100,
-        phase="downloading",
-    )
-    page.show_transfer(event)
-    assert page.percent_label.text() == "100%"
-    assert page.operation_label.text() == "正在校验"
-    page.show_transfer(
-        ProgressEvent(
-            job_id=1,
-            file_id=1,
-            current_file="source-code.zip",
-            downloaded_bytes=4,
-            expected_bytes=None,
-            overall_downloaded_bytes=4,
-            overall_expected_bytes=None,
-            percentage=None,
-            phase="verifying",
-        )
-    )
-    assert page.percent_label.text() == "正在校验"
-    assert page.progress_bar.maximum() == 0
-
-    def install_other() -> None:
-        respx.get(OTHER).mock(return_value=httpx.Response(200, json=_repo(456, "other")))
-        respx.get(OTHER_LATEST).mock(return_value=httpx.Response(404))
-        respx.get(OTHER_LIST).mock(return_value=httpx.Response(200, json=[]))
-        respx.get(OTHER_README).mock(return_value=httpx.Response(200, text="<p>Other</p>"))
-        respx.get(OTHER_SNAP).mock(return_value=httpx.Response(200, content=b"other-bytes"))
-
-    with respx.mock:
-        _install(respx)
-        page.url_edit.setText("https://github.com/octo/hello")
-        page.archive_button.click()
-        qtbot.waitUntil(lambda: page.result_label.text() == "已更新", timeout=20000)
-        install_other()
-        page.url_edit.setText("https://github.com/octo/other")
-        page.archive_button.click()
-        qtbot.waitUntil(lambda: "other" in page.repository_label.text(), timeout=20000)
-
-    hello = next(
-        page.repository_list.item(row)
-        for row in range(page.repository_list.count())
-        if "hello" in page.repository_list.item(row).text()
-    )
-    page.repository_list.setCurrentItem(hello)
-    opened: list[QUrl] = []
-    qtbot.waitUntil(lambda: "hello" in page.detail_label.text(), timeout=2000)
-
-    def capture(url: QUrl) -> bool:
-        opened.append(url)
-        return True
-
-    monkeypatch = pytest.MonkeyPatch()
-    monkeypatch.setattr(QDesktopServices, "openUrl", capture)
     try:
-        page.open_offline_page()
-        page.open_online_repository()
-        page.open_archive_folder()
+        library = LibraryService(context.connection)
+        github = GitHubBridge(context.connection, context.database_path)
+
+        def install_other() -> None:
+            respx.get(OTHER).mock(return_value=httpx.Response(200, json=_repo(456, "other")))
+            respx.get(OTHER_LATEST).mock(return_value=httpx.Response(404))
+            respx.get(OTHER_LIST).mock(return_value=httpx.Response(200, json=[]))
+            respx.get(OTHER_README).mock(return_value=httpx.Response(200, text="<p>Other</p>"))
+            respx.get(OTHER_SNAP).mock(return_value=httpx.Response(200, content=b"other-bytes"))
+
+        with respx.mock:
+            _install(respx)
+            ArchiveService(context.connection).archive_repository("https://github.com/octo/hello")
+            install_other()
+            ArchiveService(context.connection).archive_repository("https://github.com/octo/other")
+
+        listing = json.loads(github.listRepositories("", "", "recent"))
+        assert listing["ok"] is True
+        assert len(listing["data"]["items"]) == 2
+        hello = next(i for i in listing["data"]["items"] if "hello" in i["fullName"])
+        detail = json.loads(github.getRepository(hello["id"]))["data"]
+        assert detail["htmlUrl"].endswith("/hello")
+        assert detail["localStatus"] in {"archived", "partial"}
+
+        category = library.create_category("游戏")
+        filtered = json.loads(github.listRepositories("", str(category.id), "recent"))
+        assert filtered["data"]["items"] == []
+        missing = json.loads(github.listRepositories("missing-project", "", "recent"))
+        assert missing["data"]["items"] == []
+        assert missing["data"]["hasRepositories"] is True
     finally:
-        monkeypatch.undo()
-    assert Path(opened[0].toLocalFile()).is_file()
-    assert "hello" in opened[1].toString()
-    assert opened[1].toString().endswith("/hello")
-    assert Path(opened[2].toLocalFile()) == tmp_path / "archive" / "repositories" / "123"
-    other = next(
-        page.repository_list.item(row)
-        for row in range(page.repository_list.count())
-        if "other" in page.repository_list.item(row).text()
-    )
-    page.repository_list.setCurrentItem(other)
-    qtbot.waitUntil(lambda: "暂无正式 Release" in page.detail_label.text(), timeout=2000)
-    assert "尚未归档版本" not in page.detail_label.text()
+        context.close()
 
-    page.library.create_category("游戏")
-    page._reload_categories()
-    page.category_filter.setCurrentIndex(page.category_filter.findText("游戏"))
-    qtbot.waitUntil(lambda: page.repository_list.count() == 0, timeout=2000)
-    assert page.empty_label.text() == "没有符合条件的项目"
-    page.category_filter.setCurrentIndex(0)
-    qtbot.waitUntil(lambda: page.repository_list.count() == 2, timeout=2000)
-
-    page.search_edit.setText("missing-project")
-    qtbot.waitUntil(lambda: page.repository_list.count() == 0, timeout=2000)
-    assert page.empty_label.text() == "没有符合条件的项目"
-    assert page.detail_label.text() == "没有符合条件的项目。"
-    assert page.open_offline_button.isEnabled() is False
-    assert page.open_online_button.isEnabled() is False
-    assert page.open_folder_button.isEnabled() is False
-
-    page.search_edit.setText("")
-    qtbot.waitUntil(lambda: page.repository_list.count() == 2, timeout=2000)
-    host.close()
-    context.close()
     restarted = prepare_context(tmp_path / "db.sqlite")
-    again = MainWindow(restarted)
-    qtbot.addWidget(again)
-    again.show()
-    restored = again.archive_page
-    qtbot.waitUntil(lambda: restored.repository_list.count() == 2, timeout=2000)
-    hello_again = next(
-        restored.repository_list.item(row)
-        for row in range(restored.repository_list.count())
-        if "hello" in restored.repository_list.item(row).text()
-    )
-    restored.repository_list.setCurrentItem(hello_again)
-    qtbot.waitUntil(lambda: restored.open_offline_button.isEnabled(), timeout=2000)
-    assert restored.open_online_button.isEnabled() is True
-    assert restored.open_folder_button.isEnabled() is True
-    restarted.close()
+    try:
+        again = json.loads(GitHubBridge(restarted.connection, restarted.database_path).listRepositories("", "", "recent"))
+        assert len(again["data"]["items"]) == 2
+    finally:
+        restarted.close()

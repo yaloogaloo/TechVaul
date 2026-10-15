@@ -15,7 +15,7 @@ from techvault.app.bootstrap import prepare_context
 from techvault.app.library import LibraryService
 from techvault.app.messages import user_message
 from techvault.archive.progress import TransferPlan
-from techvault.ui.main_window import MainWindow
+from techvault.ui.bridge.github_bridge import GitHubBridge
 
 REPO = "https://api.github.com/repos/octo/empty"
 LATEST = "https://api.github.com/repos/octo/empty/releases/latest"
@@ -69,8 +69,10 @@ def test_no_release_repository_archives_source_snapshot(tmp_path: Path) -> None:
         assert snapshot["size"] == len(BODY)
         path = tmp_path / "a" / snapshot["relative_path"]
         assert path.is_file()
-        assert path.name == "source-code.zip"
+        assert path.name.endswith(".zip")
+        assert path.name.startswith("main-")
         assert "source" in path.parts
+        assert "github" in path.parts
         assert path.read_bytes() == BODY
         index = list((tmp_path / "a").rglob("index.html"))
         assert index and "该项目没有可用的正式 Release。" in index[0].read_text(encoding="utf-8")
@@ -243,26 +245,25 @@ def test_progress_single_file_multi_file_and_unknown_length() -> None:
     assert event.overall_downloaded_bytes == 128
 
 
-def test_archive_page_lists_a_repository(qtbot, tmp_path: Path) -> None:
+def test_github_bridge_lists_a_repository(tmp_path: Path) -> None:
+    import json
+
     context = prepare_context(tmp_path / "db.sqlite", tmp_path / "a")
     try:
         with respx.mock:
             _install_no_release()
             ArchiveService(context.connection).archive_repository("https://github.com/octo/empty")
-        window = MainWindow(context)
-        qtbot.addWidget(window)
-        page = window.archive_page
-        page.refresh_library()
-        assert page.repository_list.count() == 1
-        assert "octo / empty" in page.repository_list.item(0).text()
-        assert "源码已保存" in page.repository_list.item(0).text()
-        page.search_edit.setText("missing")
-        assert page.repository_list.count() == 0
-        page.search_edit.setText("empty")
-        assert page.repository_list.count() == 1
-        page.repository_list.setCurrentRow(0)
-        assert "Topics" in page.detail_label.text()
-        assert "python" in page.detail_label.text()
-        assert page.rearchive_button.text() == "更新项目"
+        github = GitHubBridge(context.connection, context.database_path)
+        listing = json.loads(github.listRepositories("", "", "recent"))
+        assert listing["ok"] is True
+        assert listing["data"]["hasRepositories"] is True
+        assert len(listing["data"]["items"]) == 1
+        assert "empty" in listing["data"]["items"][0]["fullName"]
+        missing = json.loads(github.listRepositories("missing", "", "recent"))
+        assert missing["data"]["items"] == []
+        found = json.loads(github.listRepositories("empty", "", "recent"))
+        assert len(found["data"]["items"]) == 1
+        detail = json.loads(github.getRepository(found["data"]["items"][0]["id"]))["data"]
+        assert "python" in detail["topics"]
     finally:
         context.close()

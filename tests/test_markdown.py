@@ -2,10 +2,8 @@
 
 from pathlib import Path
 
-from PySide6.QtWidgets import QApplication
-
 from techvault.markdown.render import render_markdown
-from techvault.ui.markdown_view import MarkdownView
+from techvault.ui.content_render import compose_readme_html
 
 SAMPLE = """
 # Title
@@ -123,15 +121,9 @@ def test_long_markdown_is_not_truncated() -> None:
     assert "Paragraph 399 stays." in html
 
 
-def test_viewer_reads_markdown(qtbot) -> None:
-    app = QApplication.instance()
-    assert app is not None
-    view = MarkdownView()
-    qtbot.addWidget(view)
-    view.set_markdown("# 阅读\n\n- 一条知识\n\n`git status`")
-    text = view.plain_text()
-    assert "阅读" in text
-    assert "一条知识" in text
-    assert "git status" in text
-    view.set_markdown("")
-    assert view.plain_text() == "没有可阅读的内容。"
+def test_compose_readme_html_for_knowledge() -> None:
+    html = compose_readme_html("markdown", "# 阅读\n\n- 一条知识\n\n`git status`")
+    assert "阅读" in html
+    assert "一条知识" in html
+    assert "git status" in html
+    assert compose_readme_html("markdown", "") == ""

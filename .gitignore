@@ -16,9 +16,13 @@ htmlcov/
 
 # Packaging output.
 build/
-dist/
+/dist/
 *.egg-info/
 .eggs/
+
+# Frontend toolchain (keep frontend/dist for packaged desktop UI).
+frontend/node_modules/
+frontend/dist-ssr/
 
 # Archive root only when it sits at the repository root.
 # src/techvault/archive/ is source and must stay tracked.

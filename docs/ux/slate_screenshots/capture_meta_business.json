@@ -1,0 +1,23 @@
+{
+  "captured_at": "2026-10-14T12:08:19.613597+00:00",
+  "mode": "business-isolated",
+  "platform": "Windows-10-10.0.26200-SP0",
+  "python": "3.11.9",
+  "database": "C:\\Users\\king\\AppData\\Local\\Temp\\techvault-slate-biz-qzjun3p_\\techvault.sqlite",
+  "archive_root": "C:\\Users\\king\\AppData\\Local\\Temp\\techvault-slate-biz-qzjun3p_\\archive",
+  "logical_dpi": 96.0,
+  "device_pixel_ratio": 1.25,
+  "method": "QWidget.grab via tools/slate_capture_business.py",
+  "screenshots": [
+    "D:\\project\\TechVault\\docs\\ux\\slate_screenshots\\b_github_1686x896.png",
+    "D:\\project\\TechVault\\docs\\ux\\slate_screenshots\\b_github_1440x900.png",
+    "D:\\project\\TechVault\\docs\\ux\\slate_screenshots\\b_github_960x640.png",
+    "D:\\project\\TechVault\\docs\\ux\\slate_screenshots\\b_long_name_failed_update.png",
+    "D:\\project\\TechVault\\docs\\ux\\slate_screenshots\\b_versions_tab.png",
+    "D:\\project\\TechVault\\docs\\ux\\slate_screenshots\\b_archive_tab.png",
+    "D:\\project\\TechVault\\docs\\ux\\slate_screenshots\\b_long_readme.png",
+    "D:\\project\\TechVault\\docs\\ux\\slate_screenshots\\b_empty_filter.png",
+    "D:\\project\\TechVault\\docs\\ux\\slate_screenshots\\b_task_result_invalid_url.png"
+  ],
+  "note": "Seeded via LibraryService-compatible SQLite + README files; no user DB/Token."
+}

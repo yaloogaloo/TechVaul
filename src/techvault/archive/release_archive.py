@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import os
-import shutil
 import sqlite3
 from dataclasses import replace
 from datetime import datetime, timezone
@@ -18,6 +16,7 @@ from techvault.archive.downloader import (
 )
 from techvault.archive.paths import PathLayout
 from techvault.archive.progress import TransferPlan
+from techvault.archive.storage import repository_dir_for
 from techvault.errors import DatabaseError, UnsafePathError
 from techvault.github.client import GitHubClient
 from techvault.github.models import LookupOutcome
@@ -127,7 +126,8 @@ def archive_release(
         _mark(connection, int(record["id"]), FileState.DOWNLOADING, None, None)
         plan.begin()
         try:
-            request = _request_for(layout, release, record, str(job_id), attempt_id)
+            repo_root = repository_dir_for(connection, layout, repository_id=repository_id)
+            request = _request_for(layout, release, record, str(job_id), repo_root)
         except UnsafePathError as exc:
             _mark(connection, int(record["id"]), FileState.FAILED, FailureCode.UNSAFE_PATH, exc.message)
             plan.finish(0)
@@ -180,8 +180,6 @@ def archive_release(
         relative = None
         if result.state == FileState.COMPLETED:
             relative = str(request.final_path.relative_to(layout.archive_root))
-            if prior_artifact is None:
-                _mirror(request.final_path, _canonical_path(layout, release, record))
         _store_result(connection, int(record["id"]), result, relative, str(layout.archive_root))
         completed += 1
         if on_progress is not None:
@@ -191,12 +189,6 @@ def archive_release(
     if status != JobStatus.COMPLETED:
         _finish_attempt(connection, attempt_id, status)
     if status == JobStatus.COMPLETED:
-        stored_files = connection.execute(
-            "SELECT * FROM release_files WHERE attempt_id = ?",
-            (attempt_id,),
-        ).fetchall()
-        if prior_artifact is not None:
-            _mirror_attempt(layout, release, stored_files)
         _emit_phase(
             on_detail,
             plan,
@@ -327,27 +319,17 @@ def _request_for(
     release: sqlite3.Row,
     record: sqlite3.Row,
     job_id: str,
-    attempt_id: int,
+    repo_root: Path,
 ) -> DownloadRequest:
-    owner = release["repo_owner"]
-    name = release["repo_name"]
-    repo_id = int(release["repo_github_id"])
-    github_release_id = int(release["github_release_id"])
+    tag = release["tag_name"]
     if record["kind"] == SOURCE_ZIP:
-        final_path = layout.release_attempt_source_file(
-            owner, name, repo_id, github_release_id, attempt_id, "source-code.zip"
-        )
+        final_path = layout.release_source_file_at(repo_root, tag, kind="zip")
     elif record["kind"] == SOURCE_TARBALL:
-        final_path = layout.release_attempt_source_file(
-            owner, name, repo_id, github_release_id, attempt_id, "source-code.tar.gz"
-        )
+        final_path = layout.release_source_file_at(repo_root, tag, kind="tar")
     else:
-        final_path = layout.release_attempt_asset_file(
-            owner,
-            name,
-            repo_id,
-            github_release_id,
-            attempt_id,
+        final_path = layout.release_asset_file_at(
+            repo_root,
+            tag,
             int(record["github_asset_id"]),
             record["name"],
         )
@@ -646,42 +628,6 @@ def _finish_attempt(connection: sqlite3.Connection, attempt_id: int, status: str
         """,
         (status, _now(), attempt_id),
     )
-
-
-def _canonical_path(layout: PathLayout, release: sqlite3.Row, record: sqlite3.Row) -> Path:
-    owner = release["repo_owner"]
-    name = release["repo_name"]
-    repo_id = int(release["repo_github_id"])
-    github_release_id = int(release["github_release_id"])
-    if record["kind"] == SOURCE_ZIP:
-        return layout.release_source_file(owner, name, repo_id, github_release_id, "source-code.zip")
-    if record["kind"] == SOURCE_TARBALL:
-        return layout.release_source_file(owner, name, repo_id, github_release_id, "source-code.tar.gz")
-    return layout.release_asset_file(
-        owner,
-        name,
-        repo_id,
-        github_release_id,
-        int(record["github_asset_id"]),
-        record["name"],
-    )
-
-
-def _mirror_attempt(layout: PathLayout, release: sqlite3.Row, files: list[sqlite3.Row]) -> None:
-    for record in files:
-        if record["state"] != FileState.PENDING and record["relative_path"]:
-            source = Path(layout.archive_root) / record["relative_path"]
-            if source.is_file():
-                _mirror(source, _canonical_path(layout, release, record))
-
-
-def _mirror(source: Path, destination: Path) -> None:
-    if source.resolve() == destination.resolve():
-        return
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    temporary = destination.parent / f"{destination.name}.mirror"
-    shutil.copyfile(source, temporary)
-    os.replace(temporary, destination)
 
 
 def _emit_phase(

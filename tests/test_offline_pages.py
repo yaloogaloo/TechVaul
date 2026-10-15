@@ -815,7 +815,7 @@ def test_current_release_links_to_release_page(tmp_path: Path) -> None:
 
 
 def _write_release_file(connection, layout: PathLayout, release_id: int, *, name: str, body: bytes, state: str) -> None:
-    final = layout.release_asset_file("octo", "hello", 123, 456, 50, name)
+    final = layout.release_asset_file("octo", "hello", 123, "v2", 50, name)
     relative = None
     digest = None
     if state == FileState.COMPLETED:
@@ -877,7 +877,7 @@ def test_offline_failure_preserves_current_release_and_files(tmp_path: Path, mon
         layout = _layout(tmp_path)
         assert release_id is not None
         body = b"phase3-zip"
-        final = layout.release_source_file("octo", "hello", 123, 456, "source-code.zip")
+        final = layout.release_source_file("octo", "hello", 123, "v2", kind="zip")
         final.parent.mkdir(parents=True, exist_ok=True)
         final.write_bytes(body)
         before = connection.execute("SELECT current_release_id FROM repositories").fetchone()[0]
@@ -924,7 +924,7 @@ def test_offline_repository_archive_real_disk(tmp_path: Path) -> None:
         repository_id, release_id = _save(connection, _release(body="## Shipped", assets=(asset, pending)))
         layout = _layout(tmp_path)
         assert release_id is not None
-        archive = layout.release_source_file("octo", "hello", 123, 456, "source-code.zip")
+        archive = layout.release_source_file("octo", "hello", 123, "v2", kind="zip")
         archive.parent.mkdir(parents=True, exist_ok=True)
         archive.write_bytes(zip_body)
         now = "2026-09-30T00:00:00+00:00"
@@ -944,7 +944,7 @@ def test_offline_repository_archive_real_disk(tmp_path: Path) -> None:
                 now,
             ),
         )
-        asset_path = layout.release_asset_file("octo", "hello", 123, 456, 50, "app.exe")
+        asset_path = layout.release_asset_file("octo", "hello", 123, "v2", 50, "app.exe")
         asset_path.parent.mkdir(parents=True, exist_ok=True)
         asset_path.write_bytes(asset_body)
         connection.execute(

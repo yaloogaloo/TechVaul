@@ -8,12 +8,15 @@ version = "0.1.0"
 description = "Local personal technical asset manager"
 requires-python = ">=3.11"
 dependencies = [
+    "beautifulsoup4>=4.12",
     "httpx>=0.27",
     "keyring>=25",
+    "lxml>=5.0",
     "markdown-it-py>=3",
     "mdit-py-plugins>=0.4",
     "nh3>=0.2",
     "PySide6>=6.6",
+    "readability-lxml>=0.8",
 ]
 
 [project.optional-dependencies]
@@ -25,6 +28,7 @@ dev = [
 
 [project.scripts]
 techvault = "techvault.ui.app:main"
+techvault-migrate-github-v2 = "techvault.archive.migrate_layout_v2:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

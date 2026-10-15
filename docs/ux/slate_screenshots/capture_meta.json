@@ -1,0 +1,19 @@
+{
+  "captured_at": "2026-10-14T12:08:10.275759+00:00",
+  "mode": "shell-demo",
+  "platform": "Windows-10-10.0.26200-SP0",
+  "python": "3.11.9",
+  "database": "C:\\Users\\king\\AppData\\Local\\Temp\\techvault-slate-xh9ogfkn\\techvault.sqlite",
+  "archive_root": "C:\\Users\\king\\AppData\\Local\\Temp\\techvault-slate-xh9ogfkn\\archive",
+  "logical_dpi": 96.0,
+  "device_pixel_ratio": 1.25,
+  "method": "QWidget.grab via tools/slate_capture.py",
+  "screenshots": [
+    "D:\\project\\TechVault\\docs\\ux\\slate_screenshots\\a2_shell_1686x896.png",
+    "D:\\project\\TechVault\\docs\\ux\\slate_screenshots\\a2_shell_1440x900.png",
+    "D:\\project\\TechVault\\docs\\ux\\slate_screenshots\\a2_shell_960x640.png",
+    "D:\\project\\TechVault\\docs\\ux\\slate_screenshots\\a2_shell_long_name_1440.png",
+    "D:\\project\\TechVault\\docs\\ux\\slate_screenshots\\a2_shell_versions_tab.png"
+  ],
+  "note": "A2 shell-demo uses static React fixtures; not business parity evidence."
+}

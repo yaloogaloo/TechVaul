@@ -1,0 +1,15 @@
+{
+  "canonical_url": "https://www.zhihu.com/question/1001/answer/2002",
+  "source_url": "https://www.zhihu.com/question/1001/answer/2002",
+  "title": "如何高效学习编程？",
+  "author": "测试答主",
+  "published_at": null,
+  "site_key": "zhihu",
+  "site_label": "知乎",
+  "extractor": "zhihu-json-answer",
+  "captured_at": "2026-10-15T05:46:33.062758+00:00",
+  "content_hash": "0475a66133f67812604005c9ebaf3cbbd4d1a5d99ff44c72ebfb8302d9d03bd1",
+  "media_total": 1,
+  "media_missing": 0,
+  "warnings": []
+}

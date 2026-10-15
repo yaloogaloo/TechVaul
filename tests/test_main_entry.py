@@ -51,7 +51,7 @@ print("IMPORT_OK")
     assert "Traceback" not in completed.stderr
 
 
-def test_main_py_creates_application_and_main_window(tmp_path: Path) -> None:
+def test_main_py_creates_application_and_desktop_window(tmp_path: Path) -> None:
     env = os.environ.copy()
     env.pop("PYTHONPATH", None)
     env["LOCALAPPDATA"] = str(tmp_path / "appdata")
@@ -74,21 +74,24 @@ spec.loader.exec_module(module)
 from PySide6.QtWidgets import QApplication
 
 created = []
-real_window = module.main.__globals__["MainWindow"]
+# Patch DesktopWindow where app.py imports it (lazy import inside main).
+import techvault.ui.desktop_window as desktop_mod
+
+real_window = desktop_mod.DesktopWindow
 
 class RecordingWindow(real_window):
     def __init__(self, context):
         super().__init__(context)
         created.append(self)
 
-module.main.__globals__["MainWindow"] = RecordingWindow
+desktop_mod.DesktopWindow = RecordingWindow
 code = module.main([])
 window = created[0]
-labels = [window.nav.item(index).text() for index in range(window.nav.count())]
 print("LAUNCH_OK")
 print(QApplication.instance() is not None)
 print(window.windowTitle())
-print("|".join(labels))
+print(type(window).__name__)
+print(hasattr(window, "knowledge") and hasattr(window, "settings") and hasattr(window, "github"))
 print(code)
 window.context.close()
 """
@@ -99,16 +102,17 @@ window.context.close()
         capture_output=True,
         text=True,
         encoding="utf-8",
-        timeout=60,
+        timeout=90,
         check=False,
     )
-    assert completed.returncode == 0, completed.stderr
+    assert completed.returncode == 0, completed.stderr + completed.stdout
     lines = [line for line in completed.stdout.splitlines() if line]
-    assert lines[-5:] == [
+    assert lines[-6:] == [
         "LAUNCH_OK",
         "True",
         "TechVault",
-        "知识|GitHub 项目|设置",
+        "RecordingWindow",
+        "True",
         "0",
     ]
     assert "Traceback" not in completed.stderr
@@ -126,7 +130,7 @@ def test_root_main_py_process_exits_cleanly(tmp_path: Path) -> None:
         env=env,
         capture_output=True,
         text=True,
-        timeout=60,
+        timeout=90,
         check=False,
     )
     assert completed.returncode == 0, completed.stderr

@@ -216,16 +216,16 @@ def test_partial_checksum_failure_preserves_old_current_and_completed_files(tmp_
         assert rows["lib.dll"]["state"] == FileState.COMPLETED
         assert rows["tool.7z"]["state"] == FileState.FAILED
         assert rows["tool.7z"]["failure_code"] == FailureCode.CHECKSUM_FAILURE
-        success = layout.release_asset_file("octo", "hello", 123, 456, 11, "My App.zip")
-        failed = layout.release_asset_file("octo", "hello", 123, 456, 12, "tool.7z")
-        kept = layout.release_asset_file("octo", "hello", 123, 456, 13, "lib.dll")
+        success = layout.release_asset_file("octo", "hello", 123, "v2", 11, "My App.zip")
+        failed = layout.release_asset_file("octo", "hello", 123, "v2", 12, "tool.7z")
+        kept = layout.release_asset_file("octo", "hello", 123, "v2", 13, "lib.dll")
         assert success.is_file() and kept.is_file()
         assert not failed.exists()
-        assert success.parent == layout.release_assets_dir("octo", "hello", 123, 456)
+        assert success.parent == layout.release_dir("octo", "hello", 123, "v2")
         job_id = connection.execute("SELECT id FROM jobs").fetchone()[0]
         part = layout.part_file(str(job_id), int(rows["tool.7z"]["id"]))
         assert part.exists()
-        assert not list(layout.release_dir("octo", "hello", 123, 456).rglob("*.part"))
+        assert not list(layout.release_dir("octo", "hello", 123, "v2").rglob("*.part"))
     finally:
         connection.close()
 
@@ -265,8 +265,10 @@ def test_complete_release_promotes_current_on_real_disk(tmp_path) -> None:
         assert job["status"] == JobStatus.COMPLETED
         assert job["target_release_id"] == release_id
         assert (archive_root / "_tmp").is_dir()
-        assert (archive_root / "repositories" / "123" / "releases" / "456" / "source").is_dir()
-        assert (archive_root / "repositories" / "123" / "releases" / "456" / "assets").is_dir()
+        release_dir = archive_root / "github" / "octo" / "hello" / "releases" / "v2"
+        assert release_dir.is_dir()
+        assert not (release_dir / "attempts").exists()
+        assert (release_dir / "release-source.zip").is_file()
         rows = connection.execute(
             "SELECT * FROM release_files WHERE release_id = ?",
             (release_id,),
@@ -285,8 +287,8 @@ def test_complete_release_promotes_current_on_real_disk(tmp_path) -> None:
         assert source_rows["SOURCE_ZIP"]["upstream_digest"] is None
         assert source_rows["SOURCE_TARBALL"]["upstream_digest"] is None
         assert source_rows["SOURCE_ZIP"]["digest_status"] == "ABSENT"
-        zip_path = layout.release_source_file("octo", "hello", 123, 456, "source-code.zip")
-        tar_path = layout.release_source_file("octo", "hello", 123, 456, "source-code.tar.gz")
+        zip_path = layout.release_source_file("octo", "hello", 123, "v2", kind="zip")
+        tar_path = layout.release_source_file("octo", "hello", 123, "v2", kind="tar")
         assert zip_path.read_bytes() == b"zip-source"
         assert tar_path.read_bytes() == b"tar-source"
     finally:
@@ -353,10 +355,10 @@ def test_cancel_preserves_completed_files_and_part(tmp_path) -> None:
         assert rows["source-code.zip"]["state"] == FileState.COMPLETED
         assert rows["source-code.tar.gz"]["state"] == FileState.COMPLETED
         assert rows["a.bin"]["state"] == FileState.CANCELLED
-        zip_path = layout.release_source_file("octo", "hello", 123, 456, "source-code.zip")
-        tar_path = layout.release_source_file("octo", "hello", 123, 456, "source-code.tar.gz")
+        zip_path = layout.release_source_file("octo", "hello", 123, "v2", kind="zip")
+        tar_path = layout.release_source_file("octo", "hello", 123, "v2", kind="tar")
         assert zip_path.is_file() and tar_path.is_file()
-        assert not layout.release_asset_file("octo", "hello", 123, 456, 1, "a.bin").exists()
+        assert not layout.release_asset_file("octo", "hello", 123, "v2", 1, "a.bin").exists()
         job_id = connection.execute("SELECT id FROM jobs").fetchone()[0]
         assert layout.part_file(str(job_id), int(rows["a.bin"]["id"])).exists()
     finally:
@@ -423,8 +425,8 @@ def test_unsafe_asset_name_fails_that_file_only(tmp_path) -> None:
         assert rows["CON"]["state"] == FileState.COMPLETED
         assert connection.execute("SELECT current_release_id FROM repositories").fetchone()[0] is None
         layout = PathLayout(tmp_path / "archive")
-        reserved = layout.release_asset_file("octo", "hello", 123, 456, 2, "CON")
+        reserved = layout.release_asset_file("octo", "hello", 123, "v2", 2, "CON")
         assert reserved.is_file()
-        assert reserved.parent == layout.release_assets_dir("octo", "hello", 123, 456)
+        assert reserved.parent == layout.release_dir("octo", "hello", 123, "v2")
     finally:
         connection.close()

@@ -1,0 +1,106 @@
+.row {
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  color: inherit;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  transition: background var(--ease);
+  border-left: 3px solid transparent;
+}
+
+.row:hover {
+  background: var(--surface-hover);
+}
+
+.rowSelected {
+  background: var(--surface-selected);
+  border-left-color: var(--accent);
+}
+
+.rowSelected:hover {
+  background: var(--surface-selected);
+}
+
+.name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.full {
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.desc {
+  font-size: 12px;
+  color: var(--text-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.4;
+  min-height: 1.4em;
+}
+
+.meta {
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-secondary);
+}
+
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.dotSuccess {
+  composes: dot;
+  background: var(--success);
+}
+
+.dotWarning {
+  composes: dot;
+  background: var(--warning);
+}
+
+.dotDanger {
+  composes: dot;
+  background: var(--danger);
+}
+
+.dotInfo {
+  composes: dot;
+  background: var(--accent);
+}
+
+.version {
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

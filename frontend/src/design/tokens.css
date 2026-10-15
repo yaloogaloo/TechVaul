@@ -1,0 +1,30 @@
+:root {
+  --app-bg: #0d1118;
+  --nav-bg: #131b26;
+  --sidebar-bg: #171f2b;
+  --content-bg: #0d1118;
+  --surface-hover: #222e3d;
+  --surface-selected: #304258;
+  --surface-raised: #1b2634;
+  --border-subtle: #2a3849;
+  --border-strong: #34485f;
+  --text-primary: #edf3fa;
+  --text-body: #c4d0df;
+  --text-secondary: #95a9c0;
+  --text-muted: #7d91a8;
+  --accent: #8ebce9;
+  --accent-hover: #a3cdf2;
+  --success: #81c8a5;
+  --warning: #e5bd79;
+  --danger: #e39393;
+  --nav-width: 72px;
+  --list-width: 320px;
+  --toolbar-height: 56px;
+  --taskbar-height: 52px;
+  --readme-max: 800px;
+  --radius: 6px;
+  --radius-lg: 8px;
+  --font-ui: "Segoe UI Variable", "Segoe UI", "Microsoft YaHei UI", system-ui, sans-serif;
+  --font-mono: "Cascadia Code", "Cascadia Mono", Consolas, monospace;
+  --ease: 140ms ease;
+}

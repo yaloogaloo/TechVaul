@@ -12,6 +12,7 @@ from techvault.app.messages import user_message
 from techvault.app.settings import SettingsService
 from techvault.archive.identity import adopt_legacy_tree
 from techvault.archive.paths import PathLayout
+from techvault.archive.storage import repository_dir_for
 from techvault.archive.release_archive import JobStatus, archive_release, reopen_failed_files
 from techvault.archive.source_snapshot import archive_source_snapshot
 from techvault.db.release_store import save_release_lookup
@@ -164,7 +165,9 @@ class ArchiveService:
             return ArchiveResult("FAILED", user_message("FAILED"))
         if page_status != PageStatus.COMPLETED:
             return _result(self._connection, stored, "OFFLINE_PAGE_FAILED", layout)
-        index = layout.page_index(stored["owner"], stored["name"], int(stored["github_repo_id"]))
+        index = layout.page_index_at(
+            repository_dir_for(self._connection, layout, repository_id=int(stored["id"]))
+        )
         if not index.is_file():
             return _result(self._connection, stored, "OFFLINE_PAGE_FAILED", layout)
         report("Building offline page", index.name, 1, 1)
@@ -210,7 +213,9 @@ class ArchiveService:
                     page_status = build_offline_pages(self._connection, client, layout, int(stored["id"]))
                     if page_status != PageStatus.COMPLETED:
                         return _result(self._connection, stored, "OFFLINE_PAGE_FAILED", layout)
-                    index = layout.page_index(stored["owner"], stored["name"], int(stored["github_repo_id"]))
+                    index = layout.page_index_at(
+                        repository_dir_for(self._connection, layout, repository_id=int(stored["id"]))
+                    )
                     if not index.is_file():
                         return _result(self._connection, stored, "OFFLINE_PAGE_FAILED", layout)
                     report("Building offline page", index.name, 1, 1)
@@ -301,7 +306,7 @@ def _result(
     tag = None
     if current_id is not None and current is not None:
         tag = current["current_tag"]
-    folder = layout.repository_dir(stored["owner"], stored["name"], int(stored["github_repo_id"]))
+    folder = repository_dir_for(connection, layout, repository_id=int(stored["id"]))
     return ArchiveResult(
         status=status,
         message=user_message(status),
