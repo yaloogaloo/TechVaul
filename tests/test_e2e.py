@@ -120,7 +120,7 @@ def test_fresh_instance_launches_and_exits(tmp_path: Path) -> None:
             row["version"]
             for row in connection.execute("SELECT version FROM schema_migrations ORDER BY version")
         ]
-        assert versions == [1, 2, 3, 4, 5, 6, 7, 8]
+        assert versions == [1, 2, 3, 4, 5, 6, 7, 8, 9]
     finally:
         connection.close()
 

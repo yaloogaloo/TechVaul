@@ -1,0 +1,22 @@
+{
+  "canonical_url": "https://www.xiaoheihe.cn/app/bbs/link/f1ba7299a477",
+  "source_url": "https://www.xiaoheihe.cn/app/bbs/link/f1ba7299a477?h_session_id=redacted&h_src=track",
+  "title": "如何获得一个免费的数据库+后端",
+  "author": "小稿的AI日记",
+  "published_at": null,
+  "site_key": "xiaoheihe",
+  "site_label": "小黑盒",
+  "extractor": "browser-dom",
+  "capture_mode": "BROWSER",
+  "captured_at": "2026-10-15T08:18:34.389509+00:00",
+  "content_hash": "71d1411633f5bdd91a33d34b1dfb82c2cf69b0fb50acfc175552950d3c139feb",
+  "media_total": 3,
+  "media_missing": 0,
+  "warnings": [],
+  "source": "browser_dom",
+  "snapshot_status": "COMPLETE",
+  "snapshot_bytes": 2239473,
+  "snapshot_sha256": "468da245aef0c9335d010fa395a364b025b881d4f9fc1595a0681b7d70a8d529",
+  "snapshot_captured_at": "2026-10-15T08:18:34.432513+00:00",
+  "relative_snapshot": "snapshot.mhtml"
+}

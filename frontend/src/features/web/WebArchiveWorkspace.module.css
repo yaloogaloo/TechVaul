@@ -296,6 +296,35 @@
   text-align: center;
 }
 
+.snapshotPanel {
+  padding: 20px 12px 32px;
+  max-width: 720px;
+  color: var(--text-body);
+}
+
+.snapshotLead {
+  margin: 0 0 8px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.snapshotActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.snapshotVersion {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
 .loadMore {
   margin: 8px;
   height: 32px;

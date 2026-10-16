@@ -128,15 +128,23 @@ export function GitHubWorkspace({ bridges, demoMode, task, onTask }: Props) {
 
   useEffect(() => {
     if (demoMode || !bridges?.tasks) return
-    bridges.tasks.taskChanged?.connect((payload: string) => {
+    const handler = (payload: string) => {
       try {
-        onTask(JSON.parse(payload) as TaskState)
-        void refreshList()
-        void refreshDetail()
+        const next = JSON.parse(payload) as TaskState
+        onTask(next)
+        // Only refresh library on terminal transitions — not every download tick.
+        if (!next.active && (next.status === 'success' || next.status === 'failed' || next.status === 'cancelled')) {
+          void refreshList()
+          void refreshDetail()
+        }
       } catch {
         /* ignore */
       }
-    })
+    }
+    bridges.tasks.taskChanged?.connect(handler)
+    return () => {
+      bridges.tasks.taskChanged?.disconnect?.(handler)
+    }
   }, [bridges, demoMode, onTask, refreshDetail, refreshList])
 
   const onResizeStart = (clientX: number) => {

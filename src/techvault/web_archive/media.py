@@ -13,9 +13,11 @@ import httpx
 from techvault.offline.links import _walk
 from techvault.web_archive.paths import WebPathLayout
 
-_ZHIHU_HOST_SUFFIXES = (
+_IMAGE_HOST_SUFFIXES = (
     "zhimg.com",
     "zhihu.com",
+    "max-c.com",  # Xiaoheihe / Heybox CDN (imgheybox*.max-c.com)
+    "xiaoheihe.cn",
 )
 _EXT_RE = re.compile(r"\.(png|jpe?g|gif|webp|svg|bmp)(?:$|\?)", re.I)
 
@@ -25,7 +27,7 @@ def is_downloadable_image(url: str) -> bool:
     if parsed.scheme not in {"http", "https"}:
         return False
     host = (parsed.hostname or "").lower()
-    if any(host == s or host.endswith("." + s) for s in _ZHIHU_HOST_SUFFIXES):
+    if any(host == s or host.endswith("." + s) for s in _IMAGE_HOST_SUFFIXES):
         return True
     if _EXT_RE.search(parsed.path):
         return True

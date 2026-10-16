@@ -65,6 +65,17 @@ def test_login_wall_not_success() -> None:
     assert result.failure_code == "NEEDS_LOGIN"
 
 
+def test_soft_login_ui_with_body_is_not_needs_login() -> None:
+    """Login buttons on anonymous shells must not block extraction when body exists."""
+    adapter = ZhihuAdapter()
+    parsed = parse_web_url("https://www.zhihu.com/question/1001/answer/2002")
+    result = adapter.extract(parsed, _html("zhihu_soft_login_with_body.html"), parsed.canonical)
+    assert result.ok
+    assert result.failure_code is None
+    assert "高效学习" in result.title
+    assert "print('hello')" in result.body_html
+
+
 def test_generic_readability() -> None:
     parsed = parse_web_url("https://example.com/post/1")
     extracted = extract_article(parsed, _html("generic_article.html"), parsed.canonical)
@@ -213,11 +224,14 @@ def test_migration_includes_web_archive(tmp_path: Path) -> None:
             )
         ]
         assert 8 in versions
+        assert 9 in versions
         cols = {
             row[1]
             for row in context.connection.execute("PRAGMA table_info(web_articles)")
         }
         assert "canonical_url" in cols
         assert "plain_text" in cols
+        assert "snapshot_status" in cols
+        assert "relative_snapshot" in cols
     finally:
         context.close()

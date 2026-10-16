@@ -1,0 +1,56 @@
+{
+  "ok": 10,
+  "rounds": 10,
+  "log": [
+    {
+      "round": 1,
+      "status": "success",
+      "mode": "BROWSER"
+    },
+    {
+      "round": 2,
+      "status": "success",
+      "mode": "BROWSER"
+    },
+    {
+      "round": 3,
+      "status": "success",
+      "mode": "BROWSER"
+    },
+    {
+      "round": 4,
+      "status": "success",
+      "mode": "BROWSER"
+    },
+    {
+      "round": 5,
+      "status": "success",
+      "mode": "BROWSER"
+    },
+    {
+      "round": 6,
+      "status": "success",
+      "mode": "BROWSER"
+    },
+    {
+      "round": 7,
+      "status": "success",
+      "mode": "BROWSER"
+    },
+    {
+      "round": 8,
+      "status": "success",
+      "mode": "BROWSER"
+    },
+    {
+      "round": 9,
+      "status": "success",
+      "mode": "BROWSER"
+    },
+    {
+      "round": 10,
+      "status": "success",
+      "mode": "BROWSER"
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "url": "https://www.xiaoheihe.cn/app/bbs/link/f1ba7299a477",
+  "title": "如何获得一个免费的数据库+后端",
+  "author": "",
+  "body_len": 2191,
+  "body_preview": "返回\n\n小稿的AI日记\n\n关注\n如何获得一个免费的数据库+后端\n小稿的AI日记\nLv.15\n10-08\n·陕西\n关注\nCodeX\n\n如果盒友想要搞一个带登录、还要存数据的小网站，没必要上来就考虑服务器。\n\n推荐一下 Supabase。\n\n一个免费的数据库，后端也顺便有了。\n\n个人项目可以一个月 0 块。\n\n页面放 Cloudflare Pages，用户和数据放这。\n\n主包之前的穷鬼全栈套餐那篇里它只占了一小段，这次单独细嗦一下。\n\n注册登录不用自己写。\n\n邮箱、Google、GitHub 都能接，免费版 5 万月活。\n\n数据库是 Postgres，一个项目 500MB，小网站怎么都够了。\n\n只",
+  "body_html_len": 33007,
+  "has_post_static": false,
+  "img_count": 29,
+  "imgs": [
+    "https://imgheybox.max-c.com/avatar/2026/08/27/6ee25ddc77b7c85fa978c643c34638e0.png?imageMogr2/thumbnail/100x100%3E",
+    "https://imgheybox1.max-c.com/web/bbs/2026/10/08/c2d7873ef5c4be28fcf853372af2f85a/thumb.png?imageMogr2/auto-orient/ignore-error/1/format/jpg/thumbnail/1125x600%3E",
+    "https://imgheybox.max-c.com/avatar/2026/08/27/6ee25ddc77b7c85fa978c643c34638e0.png?imageMogr2/thumbnail/100x100%3E",
+    "https://imgheybox1.max-c.com/web/2024/05/11/c0c7cd8d7ba44dc6ed8abdfd17ddfd4c.webp",
+    "https://imgheybox.max-c.com/web/bbs/2026/10/08/0484e62e0d7443d556c5bab32855f716/thumb.png?imageMogr2/format/webp/quality/75/ignore-error/1/auto-orient",
+    "https://imgheybox.max-c.com/web/bbs/2026/10/08/91401b737cce84e81682810be973f9c6/thumb.png?imageMogr2/format/webp/quality/75/ignore-error/1/auto-orient",
+    "https://imgheybox.max-c.com/web/bbs/2026/10/08/5c7e81f31c8eb647047a309052142869/thumb.png?imageMogr2/format/webp/quality/75/ignore-error/1/auto-orient",
+    "https://imgheybox.max-c.com/oa/2024/07/30/912b6ed8dba7f938a45fe00bddc0d697.png",
+    "https://imgheybox.max-c.com/oa/2024/07/30/912b6ed8dba7f938a45fe00bddc0d697.png",
+    "https://imgheybox.max-c.com/oa/2024/07/30/912b6ed8dba7f938a45fe00bddc0d697.png",
+    "https://imgheybox.max-c.com/oa/2024/07/30/912b6ed8dba7f938a45fe00bddc0d697.png",
+    "https://imgheybox.max-c.com/oa/2024/07/30/912b6ed8dba7f938a45fe00bddc0d697.png",
+    "https://imgheybox.max-c.com/oa/2024/07/30/912b6ed8dba7f938a45fe00bddc0d697.png",
+    "https://imgheybox.max-c.com/web/avatar/2024/04/10/4be0c47beec30de97184d7ddff036764.png?imageMogr2/thumbnail/100x100%3E",
+    "https://imgheybox.max-c.com/avatar/2026/09/16/1d2fff47f5b18dfddb4bb06da5650e46.webp?imageMogr2/thumbnail/100x100%3E",
+    "https://imgheybox.max-c.com/oa/2023/04/18/c4a0aee5a87444d73e85d4aa9f15fd0d.png",
+    "https://imgheybox.max-c.com/heybox/avatar/wx/2022/11/03/93edc83b993d87ef44d207b1f957e41b.jpg?imageMogr2/thumbnail/100x100%3E",
+    "https://imgheybox1.max-c.com/web/bbs/2026/10/12/522b7ff0ce1f10bf1f49ec942d73c449/thumb.png?imageMogr2/auto-orient/ignore-error/1/format/jpg/thumbnail/850x1450%3E",
+    "https://imgheybox1.max-c.com/bbs/2026/10/11/1bc6d083f214bfb4754780e055c0ccfd/format.jpeg?imageMogr2/auto-orient/ignore-error/1/format/jpg/thumbnail/850x1450%3E",
+    "https://imgheybox1.max-c.com/web/bbs/2026/10/11/dd5cebcfd8b44006612e8fbc5e91ca78/thumb.png?imageMogr2/auto-orient/ignore-error/1/format/jpg/thumbnail/850x1450%3E"
+  ],
+  "text_len": 2227
+}

@@ -9,12 +9,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 from threading import Event
 
-from techvault.web_archive.capture import archive_url
+from techvault.web_archive.capture import archive_url, publish_from_rendered_html
 from techvault.web_archive.models import (
     ArchiveStatus,
     ArticleDetail,
     ArticleListItem,
     CaptureResult,
+    CaptureVersionInfo,
 )
 from techvault.web_archive.paths import WebPathLayout
 
@@ -44,6 +45,29 @@ class WebArchiveService:
             url,
             cancel_event=cancel_event,
             on_progress=on_progress,
+        )
+
+    def archive_from_browser_dom(
+        self,
+        *,
+        url: str,
+        page_html: str,
+        final_url: str | None = None,
+        title: str = "",
+        author: str | None = None,
+        body_html: str = "",
+        cancel_event: Event | None = None,
+        on_progress=None,
+    ) -> CaptureResult:
+        return publish_from_rendered_html(
+            self._connection,
+            url=url,
+            page_html=page_html,
+            final_url=final_url,
+            capture_mode="BROWSER",
+            cancel_event=cancel_event,
+            on_progress=on_progress,
+            preextracted={"title": title, "author": author, "body_html": body_html},
         )
 
     def list_articles(
@@ -153,15 +177,29 @@ class WebArchiveService:
             folder_path = root / row["storage_relpath"]
             folder = str(folder_path)
             html_path = folder_path / "article.html"
-            md_path = folder_path / "article.md"
-            meta_path = folder_path / "metadata.json"
+            # Reading edition for UI: only article.html is required on the hot path.
+            # Markdown / metadata.json stay on disk for export & offline tools.
             if html_path.is_file():
                 body_html = _rewrite_media_to_file_urls(html_path.read_text(encoding="utf-8"), folder_path)
-            if md_path.is_file():
-                body_md = md_path.read_text(encoding="utf-8")
-            if meta_path.is_file():
-                meta_text = meta_path.read_text(encoding="utf-8")
         item = _list_item(row)
+        snap_status = _row_get(row, "snapshot_status", "NOT_CAPTURED") or "NOT_CAPTURED"
+        rel_snap = _row_get(row, "relative_snapshot", "") or ""
+        snap_path = ""
+        if folder and rel_snap:
+            candidate = Path(folder) / "snapshot.mhtml"
+            if candidate.is_file():
+                snap_path = str(candidate)
+            elif row["archive_root"]:
+                try:
+                    snap_path = str(WebPathLayout(row["archive_root"]).resolve_relpath(rel_snap))
+                except Exception:
+                    snap_path = ""
+        elif folder:
+            candidate = Path(folder) / "snapshot.mhtml"
+            if candidate.is_file():
+                snap_path = str(candidate)
+                if snap_status == "NOT_CAPTURED":
+                    snap_status = "COMPLETE"
         return ArticleDetail(
             **item.__dict__,
             source_url=row["source_url"] or "",
@@ -178,7 +216,106 @@ class WebArchiveService:
             category_id=None if row["category_id"] is None else int(row["category_id"]),
             category_name=row["category_name"] or "",
             metadata_json=meta_text,
+            snapshot_status=snap_status,
+            relative_snapshot=rel_snap,
+            snapshot_bytes=_row_int(row, "snapshot_bytes"),
+            snapshot_sha256=_row_get(row, "snapshot_sha256", "") or "",
+            snapshot_captured_at=_row_get(row, "snapshot_captured_at", "") or "",
+            snapshot_failure=_row_get(row, "snapshot_failure", "") or "",
+            snapshot_path=snap_path,
         )
+
+    def list_captures(self, article_id: int) -> list[CaptureVersionInfo]:
+        rows = self._connection.execute(
+            """
+            SELECT c.*, a.capture_mode AS article_capture_mode, a.archive_root, a.storage_relpath
+            FROM web_captures c
+            JOIN web_articles a ON a.id = c.article_id
+            WHERE c.article_id = ?
+            ORDER BY c.version DESC
+            """,
+            (int(article_id),),
+        ).fetchall()
+        current_snap: Path | None = None
+        version_snaps: list[Path] = []
+        if rows:
+            root = rows[0]["archive_root"]
+            rel = rows[0]["storage_relpath"]
+            if root and rel:
+                article_root = Path(root) / rel
+                candidate = article_root / "snapshot.mhtml"
+                if candidate.is_file():
+                    current_snap = candidate
+                versions_dir = article_root / "versions"
+                if versions_dir.is_dir():
+                    version_snaps = sorted(
+                        (p / "snapshot.mhtml" for p in versions_dir.iterdir() if p.is_dir()),
+                        key=lambda p: p.parent.name,
+                        reverse=True,
+                    )
+                    version_snaps = [p for p in version_snaps if p.is_file()]
+
+        out: list[CaptureVersionInfo] = []
+        older_idx = 0
+        for index, row in enumerate(rows):
+            rel_snap = _row_get(row, "relative_snapshot", "") or ""
+            status = _row_get(row, "snapshot_status", "NOT_CAPTURED") or "NOT_CAPTURED"
+            has_file = False
+            if status == "COMPLETE":
+                if index == 0 and current_snap is not None:
+                    has_file = True
+                elif older_idx < len(version_snaps):
+                    has_file = True
+                    older_idx += 1
+            out.append(
+                CaptureVersionInfo(
+                    id=int(row["id"]),
+                    version=int(row["version"]),
+                    status=row["status"] or "",
+                    captured_at=row["captured_at"] or "",
+                    capture_mode=row["article_capture_mode"] or "URL_AUTO",
+                    snapshot_status=status,
+                    snapshot_bytes=_row_int(row, "snapshot_bytes"),
+                    snapshot_failure=_row_get(row, "snapshot_failure", "") or "",
+                    has_snapshot_file=has_file,
+                    relative_snapshot=rel_snap,
+                )
+            )
+        return out
+
+    def resolve_snapshot_path(self, article_id: int, capture_id: int | None = None) -> Path | None:
+        detail = self.get_article(int(article_id))
+        if detail is None or not detail.archive_folder:
+            return None
+        article_root = Path(detail.archive_folder)
+        current = article_root / "snapshot.mhtml"
+        if capture_id is None:
+            return current if current.is_file() else None
+
+        rows = self._connection.execute(
+            "SELECT id FROM web_captures WHERE article_id = ? ORDER BY version DESC",
+            (int(article_id),),
+        ).fetchall()
+        ids = [int(r["id"]) for r in rows]
+        if int(capture_id) not in ids:
+            return None
+        index = ids.index(int(capture_id))
+        if index == 0:
+            return current if current.is_file() else None
+        versions_dir = article_root / "versions"
+        if not versions_dir.is_dir():
+            return None
+        version_snaps = sorted(
+            (p / "snapshot.mhtml" for p in versions_dir.iterdir() if p.is_dir()),
+            key=lambda p: p.parent.name,
+            reverse=True,
+        )
+        version_snaps = [p for p in version_snaps if p.is_file()]
+        # Map 1st older capture → 1st stash, etc.
+        stash_index = index - 1
+        if 0 <= stash_index < len(version_snaps):
+            return version_snaps[stash_index]
+        return None
 
     def update_article(
         self,
@@ -296,3 +433,22 @@ def _rewrite_media_to_file_urls(html: str, article_root: Path) -> str:
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _row_get(row: sqlite3.Row, key: str, default=None):
+    try:
+        if key in row.keys():
+            return row[key]
+    except Exception:
+        pass
+    return default
+
+
+def _row_int(row: sqlite3.Row, key: str) -> int | None:
+    value = _row_get(row, key, None)
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None

@@ -1,0 +1,23 @@
+{
+  "page_img_count": 29,
+  "body_img_count": 3,
+  "body_content_unique": 3,
+  "by_kind": {
+    "avatar": 5,
+    "outside_body": 10,
+    "chrome": 11,
+    "body_content": 3
+  },
+  "reading_edition_media_refs": 3,
+  "reading_edition_media_files": 3,
+  "reading_edition_placeholders": 0,
+  "mhtml_bytes": 2239473,
+  "mhtml_image_content_types": 25,
+  "pass_body_images_complete": true,
+  "pass_mhtml_has_images": true,
+  "body_content_srcs": [
+    "https://imgheybox.max-c.com/web/bbs/2026/10/08/0484e62e0d7443d556c5bab32855f716/thumb.png?imageMogr2/format/webp/quality/75/ignore-error/1/auto-orient",
+    "https://imgheybox.max-c.com/web/bbs/2026/10/08/91401b737cce84e81682810be973f9c6/thumb.png?imageMogr2/format/webp/quality/75/ignore-error/1/auto-orient",
+    "https://imgheybox.max-c.com/web/bbs/2026/10/08/5c7e81f31c8eb647047a309052142869/thumb.png?imageMogr2/format/webp/quality/75/ignore-error/1/auto-orient"
+  ]
+}

@@ -37,6 +37,13 @@ class CaptureResult:
     title: str | None = None
     archive_folder: str | None = None
     failure_code: str | None = None
+    capture_mode: str = "URL_AUTO"
+    suggest_browser: bool = False
+    diagnostics: dict | None = None
+    snapshot_status: str = "NOT_CAPTURED"
+    snapshot_message: str | None = None
+    snapshot_path: str | None = None
+    snapshot_bytes: int | None = None
 
 
 @dataclass(frozen=True)
@@ -70,3 +77,25 @@ class ArticleDetail(ArticleListItem):
     category_id: int | None
     category_name: str
     metadata_json: str
+    snapshot_status: str = "NOT_CAPTURED"
+    relative_snapshot: str = ""
+    snapshot_bytes: int | None = None
+    snapshot_sha256: str = ""
+    snapshot_captured_at: str = ""
+    snapshot_failure: str = ""
+    snapshot_path: str = ""
+
+
+@dataclass(frozen=True)
+class CaptureVersionInfo:
+    id: int
+    version: int
+    status: str
+    captured_at: str
+    capture_mode: str
+    snapshot_status: str
+    snapshot_bytes: int | None
+    snapshot_failure: str
+    has_snapshot_file: bool
+    relative_snapshot: str
+

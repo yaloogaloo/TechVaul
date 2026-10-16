@@ -1,11 +1,17 @@
 {
-  "captured_at": "2026-10-15T05:48:43.299774+00:00",
+  "captured_at": "2026-10-15T06:12:00+00:00",
   "platform": "Windows-10-10.0.26200-SP0",
   "files": [
-    "D:\\project\\TechVault\\docs\\web_archive\\screenshots\\web_workspace_1440x900.png",
-    "D:\\project\\TechVault\\docs\\web_archive\\screenshots\\web_reader_1440x900.png",
-    "D:\\project\\TechVault\\docs\\web_archive\\screenshots\\web_reader_960x640.png",
-    "D:\\project\\TechVault\\docs\\web_archive\\screenshots\\web_info_1440x900.png"
+    "web_workspace_1440x900.png",
+    "web_reader_1440x900.png",
+    "web_reader_960x640.png",
+    "web_info_1440x900.png",
+    "web_empty_hint_1440x900.png",
+    "browser_capture_1280x800.png",
+    "offline_live_case_960x720.png"
   ],
-  "tmp": "C:\\Users\\king\\AppData\\Local\\Temp\\techvault-web-shot-t8sgoqm6"
+  "notes": {
+    "browser_capture_1280x800.png": "WebCaptureWindow chrome + Zhihu URL; soft login modal may appear over content — save still uses rendered DOM",
+    "offline_live_case_960x720.png": "file:// load of live_case article.html (BROWSER COMPLETE archive)"
+  }
 }

@@ -10,17 +10,29 @@ from urllib.parse import urlparse
 from bs4 import BeautifulSoup
 
 from techvault.web_archive.adapters.base import AdapterResult
+from techvault.web_archive.failure_codes import FailureCode
 from techvault.web_archive.urls import ParsedWebUrl
 
-_LOGIN_MARKERS = (
-    "登录后才能查看",
-    "请登录后查看",
+# Soft markers appear on nearly every anonymous Zhihu shell — NEVER alone imply login.
+_SOFT_LOGIN_UI = (
+    "登录",
+    "注册",
+    "扫码登录",
     "账号密码登录",
     "二维码登录",
-    "Sign in to Zhihu",
+    "Sign in",
 )
-_CAPTCHA_MARKERS = ("人机验证", "captcha", "安全验证")
-_PAYWALL_MARKERS = ("付费 orth", "开通会员后", "试读已结束", "付费内容")
+# Strong markers: body is gated and there is no readable article.
+_STRONG_LOGIN_GATE = (
+    "登录后才能查看",
+    "请登录后查看完整内容",
+    "登录后查看剩余",
+    "登录后即可查看",
+    "只有登录用户才能查看",
+    "Sign in to Zhihu to continue",
+)
+_CAPTCHA_MARKERS = ("人机验证", "安全验证", "请完成安全验证")
+_PAYWALL_MARKERS = ("开通会员后", "试读已结束", "付费内容", "付费咨询")
 _INCOMPLETE_MARKERS = ("展开阅读全文", "显示全部", "阅读全文")
 
 
@@ -34,24 +46,18 @@ class ZhihuAdapter:
         soup = BeautifulSoup(html, "lxml")
         text_blob = soup.get_text(" ", strip=True)
 
-        if _looks_like_login(soup, text_blob):
+        # Captcha / paywall before extraction — these are not "login".
+        if _has_captcha(soup, text_blob):
             return AdapterResult(
                 ok=False,
-                failure_code="NEEDS_LOGIN",
-                failure_message="页面需要登录后才能查看完整内容",
+                failure_code=FailureCode.CAPTCHA_REQUIRED,
+                failure_message="页面出现人机验证，请在浏览器中完成",
                 extractor="zhihu-gate",
             )
-        if any(m.lower() in text_blob.lower() for m in _CAPTCHA_MARKERS):
+        if any(m in text_blob for m in _PAYWALL_MARKERS) and not _has_rich_body_hint(soup):
             return AdapterResult(
                 ok=False,
-                failure_code="CAPTCHA",
-                failure_message="页面出现验证码，无法自动归档",
-                extractor="zhihu-gate",
-            )
-        if any(m in text_blob for m in _PAYWALL_MARKERS):
-            return AdapterResult(
-                ok=False,
-                failure_code="PAYWALL",
+                failure_code=FailureCode.PAYWALL,
                 failure_message="检测到付费或权限限制内容，不会尝试绕过",
                 extractor="zhihu-gate",
             )
@@ -62,42 +68,75 @@ class ZhihuAdapter:
         else:
             result = _from_answer_json(initial, parsed, final_url) or _from_answer_dom(soup, parsed)
 
-        if result is None or not result.ok:
-            return result or AdapterResult(
-                ok=False,
-                failure_code="EXTRACT_FAILED",
-                failure_message="未能提取知乎正文",
-                extractor="zhihu",
-            )
+        # Prefer successful extraction even when soft login UI is present.
+        if result is not None and result.ok and _body_plain_len(result.body_html) >= 20:
+            warnings = list(result.warnings)
+            if any(m in text_blob for m in _INCOMPLETE_MARKERS) and len(result.body_html) < 400:
+                return AdapterResult(
+                    ok=False,
+                    failure_code=FailureCode.CONTENT_INCOMPLETE,
+                    failure_message="正文疑似未完整加载（存在展开全文提示）",
+                    extractor=result.extractor,
+                    title=result.title,
+                    author=result.author,
+                    body_html=result.body_html,
+                )
+            result.warnings = warnings
+            return result
 
-        warnings = list(result.warnings)
-        if any(m in text_blob for m in _INCOMPLETE_MARKERS) and len(result.body_html) < 400:
+        # No usable body — only then consider strong login gate.
+        if _strong_login_without_body(soup, text_blob):
+            evidence = _login_evidence(soup, text_blob)
             return AdapterResult(
                 ok=False,
-                failure_code="INCOMPLETE",
-                failure_message="正文疑似未完整加载（存在展开全文提示）",
-                extractor=result.extractor,
-                title=result.title,
-                author=result.author,
+                failure_code=FailureCode.NEEDS_LOGIN,
+                failure_message="有明确证据表明目标正文需登录后才能访问",
+                extractor="zhihu-gate",
+                warnings=[f"login_evidence={evidence}"],
             )
-        if len(re.sub(r"<[^>]+>", "", result.body_html).strip()) < 20:
-            return AdapterResult(
-                ok=False,
-                failure_code="INCOMPLETE",
-                failure_message="提取到的正文过短，可能未加载完成",
-                extractor=result.extractor,
-                title=result.title,
-                author=result.author,
-            )
-        result.warnings = warnings
-        return result
+
+        if result is not None and not result.ok:
+            return result
+        return AdapterResult(
+            ok=False,
+            failure_code=FailureCode.EXTRACTION_FAILED,
+            failure_message="未能提取知乎正文",
+            extractor="zhihu",
+        )
 
 
-def _looks_like_login(soup: BeautifulSoup, text_blob: str) -> bool:
+def _has_captcha(soup: BeautifulSoup, text_blob: str) -> bool:
+    if soup.select_one("#zh-zse-ck, .Captcha, [class*='Captcha']"):
+        # zse cookie challenge alone is access restriction handled at fetch; here for HTML bodies.
+        if 'id="zh-zse-ck"' in str(soup) and len(text_blob) < 200:
+            return False  # leave to ACCESS_RESTRICTED at HTTP layer
+    lowered = text_blob.lower()
+    return any(m.lower() in lowered for m in _CAPTCHA_MARKERS)
+
+
+def _has_rich_body_hint(soup: BeautifulSoup) -> bool:
+    return soup.select_one(".RichText, .Post-RichText, .AnswerItem, .Post-content") is not None
+
+
+def _strong_login_without_body(soup: BeautifulSoup, text_blob: str) -> bool:
+    if _has_rich_body_hint(soup) and _body_plain_len(str(soup.select_one(".RichText") or "")) >= 40:
+        return False
     title = (soup.title.string or "") if soup.title else ""
-    if "登录" in title and "知乎" in title:
+    if re.fullmatch(r".*登录\s*[-–|].*知乎.*", title.strip()) or title.strip() in {"登录 - 知乎", "登录｜知乎"}:
         return True
-    return any(marker in text_blob for marker in _LOGIN_MARKERS)
+    return any(marker in text_blob for marker in _STRONG_LOGIN_GATE)
+
+
+def _login_evidence(soup: BeautifulSoup, text_blob: str) -> str:
+    hits = [m for m in _STRONG_LOGIN_GATE if m in text_blob]
+    title = (soup.title.string or "") if soup.title else ""
+    if "登录" in title:
+        hits.append(f"title={title.strip()[:40]}")
+    return ",".join(hits) or "login-page-structure"
+
+
+def _body_plain_len(html: str) -> int:
+    return len(re.sub(r"<[^>]+>", "", html or "").strip())
 
 
 def _parse_initial_data(html: str) -> dict | None:
@@ -157,6 +196,9 @@ def _from_answer_json(data: dict | None, parsed: ParsedWebUrl, final_url: str) -
     aid = _answer_id(parsed, final_url)
     node = answers.get(str(aid)) if aid else None
     if node is None and answers:
+        # Prefer exact id; do not silently grab unrelated answer on multi-answer shells.
+        if aid:
+            return None
         node = next(iter(answers.values()), None)
     if not isinstance(node, dict):
         return None
@@ -173,7 +215,6 @@ def _from_answer_json(data: dict | None, parsed: ParsedWebUrl, final_url: str) -
     author_obj = node.get("author")
     if isinstance(author_obj, dict):
         author = author_obj.get("name")
-    published = node.get("updatedTime") or node.get("createdTime")
     return AdapterResult(
         ok=True,
         title=title,
@@ -181,13 +222,12 @@ def _from_answer_json(data: dict | None, parsed: ParsedWebUrl, final_url: str) -
         published_at=None,
         body_html=content,
         extractor="zhihu-json-answer",
-        warnings=[] if not isinstance(published, (int, float)) else [],
     )
 
 
 def _from_article_dom(soup: BeautifulSoup, parsed: ParsedWebUrl) -> AdapterResult | None:
     title_el = soup.select_one("h1.Post-Title, h1.ArticleTitle, article h1, h1")
-    body_el = soup.select_one(".Post-RichText, .RichText, article .RichText, .Post-content")
+    body_el = soup.select_one(".Post-RichText, .RichText.ztext, article .RichText, .Post-content .RichText")
     if body_el is None:
         return None
     author_el = soup.select_one(".AuthorInfo-name, .UserLink-link, meta[itemprop='author']")
@@ -207,8 +247,10 @@ def _from_article_dom(soup: BeautifulSoup, parsed: ParsedWebUrl) -> AdapterResul
 
 def _from_answer_dom(soup: BeautifulSoup, parsed: ParsedWebUrl) -> AdapterResult | None:
     title_el = soup.select_one("h1.QuestionHeader-title, .QuestionHeader-title, h1")
-    # Prefer answer rich text; avoid stitching question + random answer incorrectly.
-    body_el = soup.select_one(".AnswerItem .RichText, .AnswerCard .RichText, .RichContent-inner .RichText")
+    body_el = soup.select_one(
+        ".AnswerItem .RichText, .AnswerCard .RichText, .RichContent-inner .RichText, "
+        ".QuestionAnswer-content .RichText"
+    )
     if body_el is None:
         return None
     author_el = soup.select_one(".AnswerItem .AuthorInfo-name, .AnswerCard .UserLink-link")

@@ -1,0 +1,22 @@
+{
+  "canonical_url": "https://www.zhihu.com/question/2028250289224922953/answer/2091704662068089493",
+  "source_url": "https://www.zhihu.com/question/2028250289224922953/answer/2091704662068089493",
+  "title": "为什么有人会包养女大学生？",
+  "author": "一望瞳",
+  "published_at": null,
+  "site_key": "zhihu",
+  "site_label": "知乎",
+  "extractor": "browser-dom",
+  "capture_mode": "BROWSER",
+  "captured_at": "2026-10-15T06:47:11.930755+00:00",
+  "content_hash": "3a8e2a3614a265656e9c154a1506ec47a1559787f82f81508c028092e65c61e1",
+  "media_total": 0,
+  "media_missing": 0,
+  "warnings": [],
+  "source": "browser_dom",
+  "snapshot_status": "COMPLETE",
+  "snapshot_bytes": 799621,
+  "snapshot_sha256": "734764c78d9b11f9e4f7b28b05a91447e005ada782372bd1349ef519753e8c2f",
+  "snapshot_captured_at": "2026-10-15T06:47:12.113408+00:00",
+  "relative_snapshot": "snapshot.mhtml"
+}

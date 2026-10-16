@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from readability import Document
 
-from techvault.web_archive.adapters import ZhihuAdapter, try_adapters
+from techvault.web_archive.adapters import XiaoheiheAdapter, ZhihuAdapter, try_adapters
 from techvault.web_archive.adapters.base import AdapterResult
 from techvault.web_archive.models import ExtractedArticle
 from techvault.web_archive.sanitize_article import html_to_plain_text, sanitize_article_html
 from techvault.web_archive.urls import ParsedWebUrl
 
-_ADAPTERS = [ZhihuAdapter()]
+_ADAPTERS = [ZhihuAdapter(), XiaoheiheAdapter()]
 
 
 def extract_article(parsed: ParsedWebUrl, html: str, final_url: str) -> AdapterResult | ExtractedArticle:

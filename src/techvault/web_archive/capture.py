@@ -12,13 +12,14 @@ from threading import Event
 from urllib.parse import urlparse
 
 from techvault.app.settings import SettingsService
+from techvault.web_archive.adapters.base import AdapterResult
 from techvault.web_archive.extract import extract_article
+from techvault.web_archive.failure_codes import FailureCode, suggest_browser_capture, user_message_for
 from techvault.web_archive.fetch import fetch_html
 from techvault.web_archive.media import localize_article_images
 from techvault.web_archive.models import ArchiveStatus, CaptureResult, ExtractedArticle
-from techvault.web_archive.adapters.base import AdapterResult
 from techvault.web_archive.paths import WebPathLayout, stable_short_id
-from techvault.web_archive.sanitize_article import html_to_markdown_rough
+from techvault.web_archive.sanitize_article import html_to_markdown_rough, html_to_plain_text, sanitize_article_html
 from techvault.web_archive.urls import parse_web_url
 
 
@@ -31,62 +32,187 @@ def archive_url(
 ) -> CaptureResult:
     parsed = parse_web_url(url)
     if parsed.kind in {"unsupported", "question"}:
+        code = FailureCode.UNSUPPORTED_PAGE if parsed.kind == "unsupported" else FailureCode.QUESTION_HUB
         return CaptureResult(
             ArchiveStatus.FAILED if parsed.kind == "unsupported" else ArchiveStatus.LINK_ONLY,
-            parsed.message or "无法归档该链接",
-            failure_code="UNSUPPORTED" if parsed.kind == "unsupported" else "QUESTION_HUB",
+            parsed.message or user_message_for(code),
+            failure_code=code,
+            suggest_browser=False,
         )
     if not parsed.canonical:
-        return CaptureResult(ArchiveStatus.FAILED, "无法规范化链接", failure_code="INVALID_URL")
+        return CaptureResult(
+            ArchiveStatus.FAILED,
+            user_message_for(FailureCode.INVALID_URL, "无法规范化链接"),
+            failure_code=FailureCode.INVALID_URL,
+        )
 
     settings = SettingsService(connection)
     root = settings.get_archive_root()
     if root is None:
-        return CaptureResult(ArchiveStatus.FAILED, "尚未配置归档目录", failure_code="NO_ARCHIVE_ROOT")
-    layout = WebPathLayout(root)
+        return CaptureResult(
+            ArchiveStatus.FAILED,
+            "尚未配置归档目录",
+            failure_code=FailureCode.NO_ARCHIVE_ROOT,
+        )
 
     def report(phase: str, file: str = "", done: int = 0, total: int = 1) -> None:
         if on_progress is not None:
             on_progress(phase, file, done, total)
 
     if cancel_event is not None and cancel_event.is_set():
-        return CaptureResult(ArchiveStatus.CANCELLED, "已取消")
+        return CaptureResult(ArchiveStatus.CANCELLED, "已取消", failure_code=FailureCode.CANCELLED)
 
     report("正在获取网页", parsed.canonical)
     fetched = fetch_html(parsed.canonical)
     if not fetched.ok:
-        status = (
-            ArchiveStatus.NEEDS_LOGIN
-            if fetched.failure_code == "NEEDS_LOGIN"
-            else ArchiveStatus.FAILED
-        )
+        code = fetched.failure_code or FailureCode.HTTP_ERROR
         return CaptureResult(
-            status,
-            fetched.failure_message or "获取失败",
-            failure_code=fetched.failure_code,
+            _status_for_code(code),
+            fetched.failure_message or user_message_for(code),
+            failure_code=code,
+            suggest_browser=suggest_browser_capture(code),
+            diagnostics=fetched.diagnostics,
+            capture_mode="URL_AUTO",
         )
 
     if cancel_event is not None and cancel_event.is_set():
-        return CaptureResult(ArchiveStatus.CANCELLED, "已取消")
+        return CaptureResult(ArchiveStatus.CANCELLED, "已取消", failure_code=FailureCode.CANCELLED)
 
     report("正在提取正文")
     extracted = extract_article(parsed, fetched.html, fetched.final_url)
     if isinstance(extracted, AdapterResult):
-        status = _status_for_code(extracted.failure_code)
+        code = extracted.failure_code or FailureCode.EXTRACTION_FAILED
         return CaptureResult(
-            status,
-            extracted.failure_message or "提取失败",
-            failure_code=extracted.failure_code,
+            _status_for_code(code),
+            extracted.failure_message or user_message_for(code),
+            failure_code=code,
             title=extracted.title or None,
+            suggest_browser=suggest_browser_capture(code),
+            diagnostics=fetched.diagnostics,
+            capture_mode="URL_AUTO",
         )
     assert isinstance(extracted, ExtractedArticle)
+    return publish_extracted(
+        connection,
+        extracted,
+        capture_mode="URL_AUTO",
+        cancel_event=cancel_event,
+        on_progress=on_progress,
+        extra_meta={"http_diagnostics": fetched.diagnostics},
+    )
+
+
+def publish_from_rendered_html(
+    connection: sqlite3.Connection,
+    *,
+    url: str,
+    page_html: str,
+    final_url: str | None = None,
+    capture_mode: str = "BROWSER",
+    cancel_event: Event | None = None,
+    on_progress=None,
+    preextracted: dict | None = None,
+) -> CaptureResult:
+    """Publish from already-rendered browser DOM. Must NOT re-fetch the article via httpx."""
+    parsed = parse_web_url(url)
+    if parsed.kind in {"unsupported", "question"} and not (preextracted and preextracted.get("body_html")):
+        code = FailureCode.UNSUPPORTED_PAGE if parsed.kind == "unsupported" else FailureCode.QUESTION_HUB
+        return CaptureResult(
+            ArchiveStatus.FAILED if parsed.kind == "unsupported" else ArchiveStatus.LINK_ONLY,
+            parsed.message or user_message_for(code),
+            failure_code=code,
+            capture_mode=capture_mode,
+        )
+    if not parsed.canonical and not final_url:
+        return CaptureResult(
+            ArchiveStatus.FAILED,
+            "无法规范化链接",
+            failure_code=FailureCode.INVALID_URL,
+            capture_mode=capture_mode,
+        )
+
+    def report(phase: str, file: str = "", done: int = 0, total: int = 1) -> None:
+        if on_progress is not None:
+            on_progress(phase, file, done, total)
+
+    report("正在从当前页面提取正文")
+    extracted: ExtractedArticle | AdapterResult
+    if preextracted and (preextracted.get("body_html") or "").strip():
+        body = sanitize_article_html(preextracted["body_html"])
+        plain = html_to_plain_text(body)
+        if len(plain) < 20:
+            extracted = AdapterResult(
+                ok=False,
+                failure_code=FailureCode.CONTENT_INCOMPLETE,
+                failure_message="当前页面提取到的正文过短",
+                extractor="browser-dom",
+            )
+        else:
+            canon = parsed.canonical or final_url or url
+            extracted = ExtractedArticle(
+                title=(preextracted.get("title") or "未命名文章").strip() or "未命名文章",
+                author=preextracted.get("author"),
+                published_at=None,
+                body_html=body,
+                plain_text=plain,
+                site_key=parsed.site_key or "generic",
+                site_label=parsed.site_label or "网页",
+                canonical_url=canon,
+                source_url=url,
+                extractor="browser-dom",
+            )
+    else:
+        extracted = extract_article(parsed, page_html, final_url or parsed.canonical or url)
+
+    if isinstance(extracted, AdapterResult):
+        code = extracted.failure_code or FailureCode.EXTRACTION_FAILED
+        return CaptureResult(
+            _status_for_code(code),
+            extracted.failure_message or user_message_for(code),
+            failure_code=code,
+            title=extracted.title or None,
+            suggest_browser=False,
+            capture_mode=capture_mode,
+        )
+    return publish_extracted(
+        connection,
+        extracted,
+        capture_mode=capture_mode,
+        cancel_event=cancel_event,
+        on_progress=on_progress,
+        extra_meta={"source": "browser_dom"},
+    )
+
+
+def publish_extracted(
+    connection: sqlite3.Connection,
+    extracted: ExtractedArticle,
+    *,
+    capture_mode: str = "URL_AUTO",
+    cancel_event: Event | None = None,
+    on_progress=None,
+    extra_meta: dict | None = None,
+) -> CaptureResult:
+    settings = SettingsService(connection)
+    root = settings.get_archive_root()
+    if root is None:
+        return CaptureResult(
+            ArchiveStatus.FAILED,
+            "尚未配置归档目录",
+            failure_code=FailureCode.NO_ARCHIVE_ROOT,
+            capture_mode=capture_mode,
+        )
+    layout = WebPathLayout(root)
+
+    def report(phase: str, file: str = "", done: int = 0, total: int = 1) -> None:
+        if on_progress is not None:
+            on_progress(phase, file, done, total)
 
     domain = _domain(extracted.canonical_url)
     short_id = stable_short_id(extracted.canonical_url)
     article_root = layout.article_dir(domain, extracted.title, short_id)
     storage_rel = layout.article_relpath(domain, extracted.title, short_id)
 
-    # Preserve previous successful tree when re-archiving.
     existing = connection.execute(
         "SELECT * FROM web_articles WHERE canonical_url = ?",
         (extracted.canonical_url,),
@@ -97,7 +223,6 @@ def archive_url(
     }:
         prev_root = Path(existing["archive_root"] or root) / existing["storage_relpath"]
         if prev_root.is_dir() and prev_root.resolve() != article_root.resolve():
-            # Prefer existing bound folder for rename stability.
             article_root = prev_root
             storage_rel = existing["storage_relpath"].replace("\\", "/")
         elif prev_root.is_dir():
@@ -113,7 +238,12 @@ def archive_url(
         cancel_check=(lambda: cancel_event.is_set()) if cancel_event else None,
     )
     if cancel_event is not None and cancel_event.is_set():
-        return CaptureResult(ArchiveStatus.CANCELLED, "已取消")
+        return CaptureResult(
+            ArchiveStatus.CANCELLED,
+            "已取消",
+            failure_code=FailureCode.CANCELLED,
+            capture_mode=capture_mode,
+        )
 
     wrapped = _wrap_document(extracted.title, extracted.author, body_html, extracted.canonical_url)
     content_hash = hashlib.sha256(wrapped.encode("utf-8")).hexdigest()
@@ -127,12 +257,15 @@ def archive_url(
         "site_key": extracted.site_key,
         "site_label": extracted.site_label,
         "extractor": extracted.extractor,
+        "capture_mode": capture_mode,
         "captured_at": _now(),
         "content_hash": content_hash,
         "media_total": media_total,
         "media_missing": media_missing,
         "warnings": extracted.warnings,
     }
+    if extra_meta:
+        meta.update(extra_meta)
 
     report("正在写入文件")
     try:
@@ -147,21 +280,32 @@ def archive_url(
         return CaptureResult(
             ArchiveStatus.FAILED,
             "无法写入归档文件",
-            failure_code="IO_ERROR",
+            failure_code=FailureCode.IO_ERROR,
             title=extracted.title,
+            capture_mode=capture_mode,
         )
 
     if not html_path.is_file() or html_path.stat().st_size < 20:
-        return CaptureResult(ArchiveStatus.FAILED, "正文文件未正确生成", failure_code="INTEGRITY")
+        return CaptureResult(
+            ArchiveStatus.FAILED,
+            "正文文件未正确生成",
+            failure_code=FailureCode.INTEGRITY,
+            capture_mode=capture_mode,
+        )
 
     status = ArchiveStatus.COMPLETE if media_missing == 0 else ArchiveStatus.PARTIAL
-    message = "网页已归档" if status == ArchiveStatus.COMPLETE else "正文已保存，但部分图片缺失"
+    message = (
+        "网页已归档"
+        if status == ArchiveStatus.COMPLETE
+        else f"正文已保存，但 {media_missing} 张图片未能下载"
+    )
     captured_at = _now()
     article_id = _upsert_article(
         connection,
         existing=existing,
         extracted=extracted,
         status=status,
+        capture_mode=capture_mode,
         storage_rel=storage_rel,
         archive_root=str(root),
         relative_html=f"{storage_rel}/article.html",
@@ -180,6 +324,7 @@ def archive_url(
         article_id=article_id,
         title=extracted.title,
         archive_folder=str(article_root),
+        capture_mode=capture_mode,
     )
 
 
@@ -189,6 +334,7 @@ def _upsert_article(
     existing,
     extracted: ExtractedArticle,
     status: str,
+    capture_mode: str,
     storage_rel: str,
     archive_root: str,
     relative_html: str,
@@ -201,6 +347,7 @@ def _upsert_article(
     captured_at: str,
 ) -> int:
     now = captured_at
+    mode = capture_mode if capture_mode in {"URL_AUTO", "BROWSER", "IMPORT"} else "URL_AUTO"
     if existing is None:
         cursor = connection.execute(
             """
@@ -209,7 +356,7 @@ def _upsert_article(
                 captured_at, status, capture_mode, content_hash, storage_relpath, archive_root,
                 relative_html, relative_md, relative_meta, plain_text, media_total, media_missing,
                 created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'URL_AUTO', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 extracted.canonical_url,
@@ -221,6 +368,7 @@ def _upsert_article(
                 extracted.published_at,
                 captured_at,
                 status,
+                mode,
                 content_hash,
                 storage_rel,
                 archive_root,
@@ -243,7 +391,7 @@ def _upsert_article(
             """
             UPDATE web_articles SET
                 source_url = ?, title = ?, author = ?, published_at = ?, captured_at = ?,
-                status = ?, content_hash = ?, storage_relpath = ?, archive_root = ?,
+                status = ?, capture_mode = ?, content_hash = ?, storage_relpath = ?, archive_root = ?,
                 relative_html = ?, relative_md = ?, relative_meta = ?, plain_text = ?,
                 media_total = ?, media_missing = ?, failure_code = NULL, failure_message = NULL,
                 updated_at = ?
@@ -256,6 +404,7 @@ def _upsert_article(
                 extracted.published_at,
                 captured_at,
                 status,
+                mode,
                 content_hash,
                 storage_rel,
                 archive_root,
@@ -347,7 +496,7 @@ def _stash_version(layout: WebPathLayout, article_root: Path) -> None:
     stamp = _now_stamp()
     dest = layout.version_dir(article_root, stamp)
     dest.mkdir(parents=True, exist_ok=True)
-    for name in ("article.html", "article.md", "metadata.json"):
+    for name in ("article.html", "article.md", "metadata.json", "snapshot.mhtml"):
         src = article_root / name
         if src.is_file():
             shutil.copy2(src, dest / name)
@@ -384,10 +533,12 @@ def _domain(url: str) -> str:
 
 
 def _status_for_code(code: str | None) -> str:
-    if code == "NEEDS_LOGIN":
+    if code == FailureCode.NEEDS_LOGIN:
         return ArchiveStatus.NEEDS_LOGIN
-    if code in {"QUESTION_HUB", "UNSUPPORTED"}:
-        return ArchiveStatus.LINK_ONLY if code == "QUESTION_HUB" else ArchiveStatus.FAILED
+    if code == FailureCode.QUESTION_HUB:
+        return ArchiveStatus.LINK_ONLY
+    if code == FailureCode.CANCELLED:
+        return ArchiveStatus.CANCELLED
     return ArchiveStatus.FAILED
 
 

@@ -5,12 +5,12 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from PySide6.QtCore import QObject, Slot
+from PySide6.QtCore import QObject, QUrl, Slot
 from PySide6.QtGui import QDesktopServices
-from PySide6.QtCore import QUrl
 
 from techvault.ui.bridge._json import err, ok
-from techvault.web_archive.models import ArticleDetail, ArticleListItem
+from techvault.web_archive.browser_profile import clear_zhihu_session, zhihu_profile_dir
+from techvault.web_archive.models import ArticleDetail, ArticleListItem, CaptureResult
 from techvault.web_archive.service import WebArchiveService
 from techvault.web_archive.urls import parse_web_url
 
@@ -18,13 +18,31 @@ PAGE_SIZE = 50
 
 
 class WebArchiveBridge(QObject):
-    def __init__(self, service: WebArchiveService, parent=None) -> None:
+    def __init__(
+        self,
+        service: WebArchiveService,
+        database_path: Path,
+        parent=None,
+        task_bridge=None,
+    ) -> None:
         super().__init__(parent)
         self._service = service
+        self._database_path = Path(database_path)
+        self._capture_window = None
+        self._snapshot_window = None
+        self._task_bridge = task_bridge
 
     @Slot(result=str)
     def getStatus(self) -> str:  # noqa: N802
-        return ok({"ready": True, "pageSize": PAGE_SIZE, "supportedSites": ["zhihu", "generic"]})
+        return ok(
+            {
+                "ready": True,
+                "pageSize": PAGE_SIZE,
+                "supportedSites": ["zhihu", "xiaoheihe", "generic"],
+                "browserCaptureReady": True,
+                "zhihuProfile": str(zhihu_profile_dir(anonymous=False)),
+            }
+        )
 
     @Slot(str, result=str)
     def parseUrl(self, url: str) -> str:  # noqa: N802
@@ -129,6 +147,147 @@ class WebArchiveBridge(QObject):
     def listSites(self) -> str:  # noqa: N802
         return ok(self._service.site_keys())
 
+    @Slot(str, result=str)
+    def openBrowserCapture(self, url: str) -> str:  # noqa: N802
+        cleaned = (url or "").strip()
+        if not cleaned:
+            return err("INVALID_URL", "请输入网页链接")
+        parsed = parse_web_url(cleaned)
+        if parsed.kind == "question":
+            return err("QUESTION_HUB", parsed.message or "请打开具体回答链接")
+        if parsed.kind == "unsupported":
+            return err("UNSUPPORTED", parsed.message or "暂不支持该链接")
+        target = parsed.canonical or cleaned
+        from techvault.ui.web_capture_window import WebCaptureWindow
+
+        if self._capture_window is not None:
+            try:
+                self._capture_window.close()
+            except RuntimeError:
+                pass
+        window = WebCaptureWindow(
+            self._database_path,
+            target,
+            use_login_profile=False,
+            parent=None,
+        )
+        window.captureFinished.connect(self._on_browser_capture_finished)
+        self._capture_window = window
+        window.show()
+        window.raise_()
+        window.activateWindow()
+        return ok({"opened": True, "url": target, "mode": "anonymous"})
+
+    @Slot(result=str)
+    def clearZhihuSession(self) -> str:  # noqa: N802
+        path = clear_zhihu_session()
+        return ok({"cleared": True, "profile": str(path)})
+
+    @Slot(result=str)
+    def getSessionStatus(self) -> str:  # noqa: N802
+        login_dir = zhihu_profile_dir(anonymous=False)
+        cookies = login_dir / "Cookies"
+        return ok(
+            {
+                "profileDir": str(login_dir),
+                "hasPersistedData": any(login_dir.iterdir()) if login_dir.is_dir() else False,
+                "cookieStorePresent": cookies.exists(),
+                "note": "会话可能过期；配置目录含敏感数据，勿分享。",
+            }
+        )
+
+    @Slot(int, result=str)
+    def listCaptures(self, article_id: int) -> str:  # noqa: N802
+        rows = self._service.list_captures(int(article_id))
+        return ok(
+            {
+                "items": [
+                    {
+                        "id": r.id,
+                        "version": r.version,
+                        "status": r.status,
+                        "capturedAt": r.captured_at,
+                        "captureMode": r.capture_mode,
+                        "snapshotStatus": r.snapshot_status,
+                        "snapshotBytes": r.snapshot_bytes,
+                        "snapshotFailure": r.snapshot_failure,
+                        "hasSnapshotFile": r.has_snapshot_file,
+                        "relativeSnapshot": r.relative_snapshot,
+                    }
+                    for r in rows
+                ]
+            }
+        )
+
+    @Slot(str, result=str)
+    def openSnapshotPreview(self, payload_json: str) -> str:  # noqa: N802
+        try:
+            payload = json.loads(payload_json or "{}")
+        except json.JSONDecodeError:
+            return err("INVALID_PAYLOAD", "参数无效")
+        article_id = int(payload.get("articleId") or payload.get("id") or 0)
+        capture_id_raw = payload.get("captureId")
+        capture_id = None if capture_id_raw in (None, "", "null") else int(capture_id_raw)
+        if not article_id:
+            return err("INVALID_PAYLOAD", "缺少文章 id")
+        detail = self._service.get_article(article_id)
+        if detail is None:
+            return err("NOT_FOUND", "文章不存在")
+        path = self._service.resolve_snapshot_path(article_id, capture_id)
+        if path is None or not path.is_file():
+            return err("NO_SNAPSHOT", "此文章尚未保存网页快照。")
+        from techvault.ui.snapshot_viewer_window import SnapshotViewerWindow
+
+        if self._snapshot_window is not None:
+            try:
+                self._snapshot_window.close()
+            except RuntimeError:
+                pass
+        window = SnapshotViewerWindow(
+            path,
+            title=detail.title or "网页快照",
+            subtitle=(
+                f"捕获时间：{detail.snapshot_captured_at or detail.captured_at} · "
+                f"大小：{detail.snapshot_bytes or path.stat().st_size} 字节 · 离线预览"
+            ),
+            parent=None,
+        )
+        self._snapshot_window = window
+        window.show()
+        window.raise_()
+        window.activateWindow()
+        return ok({"opened": True, "path": str(path), "offline": True})
+
+    @Slot(str, result=str)
+    def openSnapshotFile(self, payload_json: str) -> str:  # noqa: N802
+        try:
+            payload = json.loads(payload_json or "{}")
+        except json.JSONDecodeError:
+            return err("INVALID_PAYLOAD", "参数无效")
+        article_id = int(payload.get("articleId") or payload.get("id") or 0)
+        capture_id_raw = payload.get("captureId")
+        capture_id = None if capture_id_raw in (None, "", "null") else int(capture_id_raw)
+        path = self._service.resolve_snapshot_path(article_id, capture_id)
+        if path is None or not path.is_file():
+            return err("NO_SNAPSHOT", "此文章尚未保存网页快照。")
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(path.resolve())))
+        return ok({"path": str(path)})
+
+    def _on_browser_capture_finished(self, result: CaptureResult) -> None:
+        # Manual browser save: publish task snapshot so React refreshes list + selection.
+        # Skip when TaskBridge already owns an auto-fallback capture (busy / same window).
+        tb = self._task_bridge
+        if tb is None:
+            return
+        try:
+            if getattr(tb, "_capture_window", None) is not None:
+                return
+            if tb._state.get("active"):  # noqa: SLF001
+                return
+            tb._finalize_web(result)  # noqa: SLF001
+        except Exception:
+            pass
+
 
 def _list_json(item: ArticleListItem) -> dict:
     return {
@@ -153,8 +312,9 @@ def _detail_json(detail: ArticleDetail) -> dict:
             "sourceUrl": detail.source_url,
             "publishedAt": detail.published_at,
             "bodyHtml": detail.body_html,
-            "bodyMd": detail.body_md,
-            "plainText": detail.plain_text,
+            # bodyMd / plainText / metadataJson omitted from hot path to keep WebChannel payloads small.
+            "bodyMd": "",
+            "plainText": "",
             "archiveFolder": detail.archive_folder,
             "mediaTotal": detail.media_total,
             "mediaMissing": detail.media_missing,
@@ -163,7 +323,15 @@ def _detail_json(detail: ArticleDetail) -> dict:
             "failureMessage": detail.failure_message,
             "categoryId": detail.category_id,
             "categoryName": detail.category_name,
-            "metadataJson": detail.metadata_json,
+            "metadataJson": "",
+            "snapshotStatus": detail.snapshot_status,
+            "relativeSnapshot": detail.relative_snapshot,
+            "snapshotBytes": detail.snapshot_bytes,
+            "snapshotSha256": detail.snapshot_sha256,
+            "snapshotCapturedAt": detail.snapshot_captured_at,
+            "snapshotFailure": detail.snapshot_failure,
+            "snapshotPath": detail.snapshot_path,
+            "hasSnapshot": bool(detail.snapshot_path) and detail.snapshot_status == "COMPLETE",
         }
     )
     return base

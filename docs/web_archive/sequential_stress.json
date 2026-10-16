@@ -1,0 +1,36 @@
+{
+  "tmp": "C:\\Users\\king\\AppData\\Local\\Temp\\tv-seq-yma6lhf9",
+  "results": [
+    {
+      "site": "zhihu",
+      "status": "COMPLETE",
+      "article_id": 1,
+      "ok": true
+    },
+    {
+      "site": "xiaoheihe",
+      "status": "COMPLETE",
+      "article_id": 2,
+      "ok": true
+    },
+    {
+      "site": "zhihu",
+      "status": "COMPLETE",
+      "article_id": 3,
+      "ok": true
+    },
+    {
+      "site": "xiaoheihe",
+      "status": "COMPLETE",
+      "article_id": 4,
+      "ok": true
+    }
+  ],
+  "list_count": 4,
+  "site_keys": [
+    "xiaoheihe",
+    "zhihu"
+  ],
+  "all_ok": true,
+  "pass_sequential": true
+}

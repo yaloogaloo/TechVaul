@@ -7,7 +7,11 @@ interface Props {
 }
 
 export function TaskBar({ task, onCancel }: Props) {
-  const visible = task.active || task.status === 'running' || task.status === 'cancelling'
+  const visible =
+    task.active ||
+    task.status === 'running' ||
+    task.status === 'cancelling' ||
+    task.status === 'waiting_user'
   if (!visible) {
     return <div className={styles.hidden} aria-hidden />
   }

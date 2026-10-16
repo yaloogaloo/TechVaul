@@ -57,6 +57,10 @@ class WebPathLayout:
         root = self._inside(article_root)
         return self._child(root / "metadata.json", root)
 
+    def snapshot_mhtml(self, article_root: Path) -> Path:
+        root = self._inside(article_root)
+        return self._child(root / "snapshot.mhtml", root)
+
     def media_dir(self, article_root: Path) -> Path:
         root = self._inside(article_root)
         return self._inside(root / "media")

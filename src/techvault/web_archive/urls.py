@@ -36,7 +36,13 @@ def parse_web_url(raw: str) -> ParsedWebUrl:
 
     if host in {"zhihu.com", "www.zhihu.com"} or host.endswith(".zhihu.com"):
         return _parse_zhihu(text, host, path, parsed)
-    canonical = urlunparse(("https", host, path.rstrip("/") or "/", "", "", ""))
+    if host in {"xiaoheihe.cn", "www.xiaoheihe.cn", "api.xiaoheihe.cn"} or host.endswith(
+        ".xiaoheihe.cn"
+    ):
+        return _parse_xiaoheihe(text, host, path, parsed)
+    # Preserve caller scheme (do not force https) so local http:// stress fixtures work.
+    scheme = parsed.scheme if parsed.scheme in {"http", "https"} else "https"
+    canonical = urlunparse((scheme, host, path.rstrip("/") or "/", "", "", ""))
     return ParsedWebUrl(raw, canonical, "generic", host, "generic")
 
 
@@ -84,3 +90,53 @@ def _parse_zhihu(original: str, host: str, path: str, parsed) -> ParsedWebUrl:
             return parse_web_url(target)
 
     return ParsedWebUrl(original, "", "zhihu", "知乎", "unsupported", "暂不支持该知乎页面类型")
+
+
+def _parse_xiaoheihe(original: str, host: str, path: str, parsed) -> ParsedWebUrl:
+    """Normalize Heybox / Xiaoheihe share + community post URLs to a stable link_id page."""
+    qs = parse_qs(parsed.query)
+    link_id = (qs.get("link_id") or [None])[0]
+    parts = [p for p in path.split("/") if p]
+
+    # api.xiaoheihe.cn/.../share?link_id=...
+    if not link_id and host.startswith("api."):
+        link_id = (qs.get("link_id") or [None])[0]
+
+    # /app/bbs/link/<link_id>
+    if not link_id and len(parts) >= 4 and parts[0] == "app" and parts[1] == "bbs" and parts[2] == "link":
+        link_id = parts[3]
+
+    # /bbs/link/<link_id>
+    if not link_id and len(parts) >= 3 and parts[0] == "bbs" and parts[1] == "link":
+        link_id = parts[2]
+
+    # Short /a/<id> is NOT assumed valid (404 observed); leave unsupported unless proven.
+    if not link_id and len(parts) >= 2 and parts[0] == "a":
+        return ParsedWebUrl(
+            original,
+            "",
+            "xiaoheihe",
+            "小黑盒",
+            "unsupported",
+            "短链 /a/<id> 需先打开官方分享页以确认帖子身份",
+        )
+
+    if link_id and _looks_like_heybox_link_id(link_id):
+        canonical = f"https://www.xiaoheihe.cn/app/bbs/link/{link_id}"
+        return ParsedWebUrl(original, canonical, "xiaoheihe", "小黑盒", "article")
+
+    return ParsedWebUrl(
+        original,
+        "",
+        "xiaoheihe",
+        "小黑盒",
+        "unsupported",
+        "无法识别小黑盒帖子链接（需要 link_id）",
+    )
+
+
+def _looks_like_heybox_link_id(value: str) -> bool:
+    text = (value or "").strip()
+    if len(text) < 6 or len(text) > 64:
+        return False
+    return all(ch.isalnum() or ch in {"_", "-"} for ch in text)

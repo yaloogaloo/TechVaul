@@ -70,6 +70,7 @@ export interface TaskState {
   active: boolean
   ownerRepo: string
   phase: string
+  phaseCode?: string
   status: string
   progressKind: 'determinate' | 'indeterminate'
   percent: number
@@ -81,6 +82,16 @@ export interface TaskState {
   resultStatus?: string
   kind?: 'github' | 'web'
   articleId?: number | null
+  suggestBrowser?: boolean
+  failureCode?: string | null
+  captureMode?: string
+  httpFailureCode?: string | null
+  browserFailureCode?: string | null
+  snapshotStatus?: string | null
+  snapshotMessage?: string | null
+  snapshotBytes?: number | null
+  taskId?: string
+  pageKind?: string
 }
 
 export interface WebArticleListItem {
@@ -112,6 +123,27 @@ export interface WebArticleDetail extends WebArticleListItem {
   categoryId: number | null
   categoryName: string
   metadataJson: string
+  snapshotStatus?: string
+  relativeSnapshot?: string
+  snapshotBytes?: number | null
+  snapshotSha256?: string
+  snapshotCapturedAt?: string
+  snapshotFailure?: string
+  snapshotPath?: string
+  hasSnapshot?: boolean
+}
+
+export interface WebCaptureVersion {
+  id: number
+  version: number
+  status: string
+  capturedAt: string
+  captureMode: string
+  snapshotStatus: string
+  snapshotBytes: number | null
+  snapshotFailure: string
+  hasSnapshotFile: boolean
+  relativeSnapshot: string
 }
 
 export interface WebArticlePage {

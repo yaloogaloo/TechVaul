@@ -1,0 +1,214 @@
+{
+  "tmp": "C:\\Users\\king\\AppData\\Local\\Temp\\tv-hang-cp9yjlpq",
+  "runs": [
+    {
+      "url": "https://www.zhihu.com/question/2028250289224922953/answer/2091704662068089493",
+      "final": {
+        "taskId": "190299b000b0",
+        "status": "success",
+        "phaseCode": "COMPLETED",
+        "pageKind": "answer",
+        "articleId": 1,
+        "captureMode": "BROWSER",
+        "httpFailureCode": "ACCESS_RESTRICTED",
+        "browserFailureCode": null,
+        "message": "网页已归档，可离线阅读。"
+      },
+      "phases": [
+        {
+          "taskId": "190299b000b0",
+          "phaseCode": "FETCHING_HTTP",
+          "status": "running",
+          "active": true,
+          "pageKind": "answer"
+        },
+        {
+          "taskId": "190299b000b0",
+          "phaseCode": "FETCHING_HTTP",
+          "status": "running",
+          "active": true,
+          "pageKind": "answer"
+        },
+        {
+          "taskId": "190299b000b0",
+          "phaseCode": "BROWSER_LOADING",
+          "status": "running",
+          "active": true,
+          "pageKind": "answer"
+        },
+        {
+          "taskId": "190299b000b0",
+          "phaseCode": "BROWSER_LOADING",
+          "status": "running",
+          "active": true,
+          "pageKind": "answer"
+        },
+        {
+          "taskId": "190299b000b0",
+          "phaseCode": "CAPTURING_DOM",
+          "status": "running",
+          "active": true,
+          "pageKind": "answer"
+        },
+        {
+          "taskId": "190299b000b0",
+          "phaseCode": "LOCALIZING_MEDIA",
+          "status": "running",
+          "active": true,
+          "pageKind": "answer"
+        },
+        {
+          "taskId": "190299b000b0",
+          "phaseCode": "PUBLISHING",
+          "status": "running",
+          "active": true,
+          "pageKind": "answer"
+        },
+        {
+          "taskId": "190299b000b0",
+          "phaseCode": "SAVING_SNAPSHOT",
+          "status": "running",
+          "active": true,
+          "pageKind": "answer"
+        },
+        {
+          "taskId": "190299b000b0",
+          "phaseCode": "SAVING_SNAPSHOT",
+          "status": "running",
+          "active": true,
+          "pageKind": "answer"
+        },
+        {
+          "taskId": "190299b000b0",
+          "phaseCode": "SAVING_SNAPSHOT",
+          "status": "running",
+          "active": true,
+          "pageKind": "answer"
+        },
+        {
+          "taskId": "190299b000b0",
+          "phaseCode": "WAITING_FOR_CONTENT",
+          "status": "running",
+          "active": true,
+          "pageKind": "answer"
+        },
+        {
+          "taskId": "190299b000b0",
+          "phaseCode": "VERIFYING",
+          "status": "running",
+          "active": true,
+          "pageKind": "answer"
+        },
+        {
+          "taskId": "190299b000b0",
+          "phaseCode": "COMPLETED",
+          "status": "success",
+          "active": false,
+          "pageKind": "answer"
+        }
+      ]
+    },
+    {
+      "url": "https://zhuanlan.zhihu.com/p/2058207332111218352",
+      "final": {
+        "taskId": "65d22371aa52",
+        "status": "success",
+        "phaseCode": "COMPLETED",
+        "pageKind": "article",
+        "articleId": 2,
+        "captureMode": "BROWSER",
+        "httpFailureCode": "ACCESS_RESTRICTED",
+        "browserFailureCode": null,
+        "message": "网页已归档，可离线阅读。"
+      },
+      "phases": [
+        {
+          "taskId": "65d22371aa52",
+          "phaseCode": "FETCHING_HTTP",
+          "status": "running",
+          "active": true,
+          "pageKind": "article"
+        },
+        {
+          "taskId": "65d22371aa52",
+          "phaseCode": "FETCHING_HTTP",
+          "status": "running",
+          "active": true,
+          "pageKind": "article"
+        },
+        {
+          "taskId": "65d22371aa52",
+          "phaseCode": "BROWSER_LOADING",
+          "status": "running",
+          "active": true,
+          "pageKind": "article"
+        },
+        {
+          "taskId": "65d22371aa52",
+          "phaseCode": "BROWSER_LOADING",
+          "status": "running",
+          "active": true,
+          "pageKind": "article"
+        },
+        {
+          "taskId": "65d22371aa52",
+          "phaseCode": "CAPTURING_DOM",
+          "status": "running",
+          "active": true,
+          "pageKind": "article"
+        },
+        {
+          "taskId": "65d22371aa52",
+          "phaseCode": "LOCALIZING_MEDIA",
+          "status": "running",
+          "active": true,
+          "pageKind": "article"
+        },
+        {
+          "taskId": "65d22371aa52",
+          "phaseCode": "PUBLISHING",
+          "status": "running",
+          "active": true,
+          "pageKind": "article"
+        },
+        {
+          "taskId": "65d22371aa52",
+          "phaseCode": "SAVING_SNAPSHOT",
+          "status": "running",
+          "active": true,
+          "pageKind": "article"
+        },
+        {
+          "taskId": "65d22371aa52",
+          "phaseCode": "SAVING_SNAPSHOT",
+          "status": "running",
+          "active": true,
+          "pageKind": "article"
+        },
+        {
+          "taskId": "65d22371aa52",
+          "phaseCode": "SAVING_SNAPSHOT",
+          "status": "running",
+          "active": true,
+          "pageKind": "article"
+        },
+        {
+          "taskId": "65d22371aa52",
+          "phaseCode": "VERIFYING",
+          "status": "running",
+          "active": true,
+          "pageKind": "article"
+        },
+        {
+          "taskId": "65d22371aa52",
+          "phaseCode": "COMPLETED",
+          "status": "success",
+          "active": false,
+          "pageKind": "article"
+        }
+      ]
+    }
+  ],
+  "pass_sequential": true,
+  "pass_no_orphan_active": true
+}

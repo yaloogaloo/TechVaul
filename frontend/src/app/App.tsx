@@ -148,6 +148,9 @@ export function App() {
       }
     }
     bridges.tasks.taskChanged?.connect(handler)
+    return () => {
+      bridges.tasks.taskChanged?.disconnect?.(handler)
+    }
   }, [bridges, demoMode])
 
   if (!ready) {

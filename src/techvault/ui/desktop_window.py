@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 
 from PySide6.QtWebChannel import QWebChannel
-from PySide6.QtWebEngineCore import QWebEngineProfile, QWebEngineSettings
+from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineProfile, QWebEngineSettings
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import QMainWindow
 
@@ -35,12 +35,23 @@ class DesktopWindow(QMainWindow):
         self.knowledge = KnowledgeBridge(context.documents, self)
         self.settings = SettingsBridge(context.settings, self)
         self.tasks = TaskBridge(context.database_path, self)
-        self.webArchive = WebArchiveBridge(WebArchiveService(context.connection), self)
+        self.webArchive = WebArchiveBridge(
+            WebArchiveService(context.connection),
+            context.database_path,
+            self,
+            task_bridge=self.tasks,
+        )
+
+        # Dedicated shell profile (not defaultProfile): capture/snapshot windows create
+        # their own profiles; sharing defaultProfile with rapid OTR capture teardown
+        # correlated with native AVs under DesktopWindow + capture concurrency.
+        self._shell_profile = QWebEngineProfile("techvault-slate-shell", self)
+        self._handler = DistSchemeHandler(frontend_dist_dir(), self)
+        self._shell_profile.installUrlSchemeHandler(b"techvault", self._handler)
 
         self.view = QWebEngineView(self)
-        profile = QWebEngineProfile.defaultProfile()
-        self._handler = DistSchemeHandler(frontend_dist_dir(), self)
-        profile.installUrlSchemeHandler(b"techvault", self._handler)
+        self._shell_page = QWebEnginePage(self._shell_profile, self.view)
+        self.view.setPage(self._shell_page)
 
         settings = self.view.settings()
         settings.setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessFileUrls, True)
@@ -48,14 +59,14 @@ class DesktopWindow(QMainWindow):
         settings.setAttribute(QWebEngineSettings.WebAttribute.JavascriptEnabled, True)
         settings.setAttribute(QWebEngineSettings.WebAttribute.ErrorPageEnabled, True)
 
-        channel = QWebChannel(self.view.page())
+        channel = QWebChannel(self._shell_page)
         channel.registerObject("application", self.application)
         channel.registerObject("github", self.github)
         channel.registerObject("knowledge", self.knowledge)
         channel.registerObject("settings", self.settings)
         channel.registerObject("tasks", self.tasks)
         channel.registerObject("webArchive", self.webArchive)
-        self.view.page().setWebChannel(channel)
+        self._shell_page.setWebChannel(channel)
 
         self.setCentralWidget(self.view)
         self.statusBar().hide()

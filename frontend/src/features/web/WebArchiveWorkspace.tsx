@@ -3,7 +3,13 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { ConfirmDialog, type ConfirmChoice } from '../../components/ConfirmDialog'
 import { MarkdownReader } from '../../components/MarkdownReader'
 import { callBridge, type Bridges } from '../../services/qtBridge'
-import type { TaskState, WebArticleDetail, WebArticleListItem, WebArticlePage } from '../../types/bridge'
+import type {
+  TaskState,
+  WebArticleDetail,
+  WebArticleListItem,
+  WebArticlePage,
+  WebCaptureVersion,
+} from '../../types/bridge'
 import styles from './WebArchiveWorkspace.module.css'
 
 const DEMO_ITEMS: WebArticleListItem[] = [
@@ -62,6 +68,9 @@ export function WebArchiveWorkspace({ bridges, demoMode, task, onToast }: Props)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleteBusy, setDeleteBusy] = useState(false)
   const [urlHint, setUrlHint] = useState('')
+  const [browserHint, setBrowserHint] = useState('')
+  const [captures, setCaptures] = useState<WebCaptureVersion[]>([])
+  const [captureId, setCaptureId] = useState<number | null>(null)
   const dragRef = useRef<{ startX: number; startW: number } | null>(null)
   const seq = useRef(0)
   const prevTaskStatus = useRef(task.status)
@@ -149,15 +158,53 @@ export function WebArchiveWorkspace({ bridges, demoMode, task, onToast }: Props)
   }, [selectedId, loadDetail])
 
   useEffect(() => {
+    if (tab !== 'snapshot' || selectedId == null || demoMode || !bridges?.webArchive) {
+      return
+    }
+    void (async () => {
+      const result = await callBridge<{ items: WebCaptureVersion[] }>(() =>
+        bridges.webArchive.listCaptures(selectedId),
+      )
+      if (result.ok && result.data?.items) {
+        setCaptures(result.data.items)
+        const preferred =
+          result.data.items.find((c) => c.hasSnapshotFile) || result.data.items[0] || null
+        setCaptureId(preferred ? preferred.id : null)
+      } else {
+        setCaptures([])
+        setCaptureId(null)
+      }
+    })()
+  }, [tab, selectedId, detail?.snapshotStatus, demoMode, bridges])
+
+  useEffect(() => {
     const prev = prevTaskStatus.current
     prevTaskStatus.current = task.status
-    if (task.kind === 'web' && prev === 'running' && (task.status === 'success' || task.status === 'failed')) {
+    const wasActive =
+      prev === 'running' || prev === 'cancelling' || prev === 'waiting_user'
+    const isTerminal =
+      task.status === 'success' || task.status === 'failed' || task.status === 'cancelled'
+    if (task.kind === 'web' && wasActive && isTerminal) {
       void loadList(0, false)
       if (task.articleId) {
         setSelectedId(task.articleId)
       }
-      if (task.status === 'success') onToast('success', task.message || '网页已归档')
-      else if (task.message) onToast('error', task.message)
+      if (task.status === 'success') {
+        setBrowserHint('')
+        onToast('success', task.message || '网页已归档，可离线阅读。')
+      } else if (task.resultStatus === 'PARTIAL') {
+        setBrowserHint('')
+        onToast('info', task.message || '正文已保存，部分资源缺失')
+        void loadList(0, false)
+      } else if (task.message) {
+        onToast('error', task.message)
+        // One-click already tried Chromium when needed; keep manual browser as secondary recovery.
+        if (task.suggestBrowser) {
+          setBrowserHint('仍可手动打开浏览器确认正文后保存。')
+        } else if (task.captureMode === 'BROWSER' && task.status === 'failed') {
+          setBrowserHint('可再次「在浏览器中打开」，展开全文或登录后点「保存当前页面」。')
+        }
+      }
     }
   }, [task, loadList, onToast])
 
@@ -171,6 +218,7 @@ export function WebArchiveWorkspace({ bridges, demoMode, task, onToast }: Props)
       onToast('info', '演示模式无法真实归档，请启动桌面端')
       return
     }
+    setBrowserHint('')
     if (bridges.webArchive) {
       const parsed = await callBridge<{ ok: boolean; message: string; kind: string }>(() =>
         bridges.webArchive.parseUrl(cleaned),
@@ -186,6 +234,25 @@ export function WebArchiveWorkspace({ bridges, demoMode, task, onToast }: Props)
     if (!result.ok) {
       onToast('error', result.error?.message || '无法开始归档')
     }
+  }
+
+  const onOpenBrowser = async () => {
+    const cleaned = url.trim()
+    if (!cleaned) {
+      onToast('error', '请粘贴网页链接')
+      return
+    }
+    if (demoMode || !bridges?.webArchive) {
+      onToast('info', '演示模式无法打开浏览器捕获窗口')
+      return
+    }
+    const result = await callBridge<{ opened: boolean }>(() => bridges.webArchive.openBrowserCapture(cleaned))
+    if (!result.ok) {
+      onToast('error', result.error?.message || '无法打开浏览器')
+      return
+    }
+    setBrowserHint('')
+    onToast('info', '已打开浏览器：确认正文完整后点击「保存当前页面」')
   }
 
   const toggleFavorite = async () => {
@@ -237,6 +304,12 @@ export function WebArchiveWorkspace({ bridges, demoMode, task, onToast }: Props)
   }, [])
 
   const busy = task.active && task.kind === 'web'
+  const archiveLabel =
+    busy && task.phaseCode === 'WAITING_FOR_USER'
+      ? '等待确认…'
+      : busy
+        ? '归档中…'
+        : '保存网页'
 
   return (
     <div className={styles.root}>
@@ -252,9 +325,20 @@ export function WebArchiveWorkspace({ bridges, demoMode, task, onToast }: Props)
           }}
         />
         <button type="button" className={styles.primary} disabled={busy} onClick={() => void onArchive()}>
-          {busy ? '归档中…' : '保存网页'}
+          {archiveLabel}
+        </button>
+        <button type="button" className={styles.ghost} disabled={busy} onClick={() => void onOpenBrowser()}>
+          在浏览器中打开
         </button>
         {urlHint ? <div className={styles.hint}>{urlHint}</div> : null}
+        {browserHint ? (
+          <div className={styles.hint}>
+            {browserHint}{' '}
+            <button type="button" className={styles.ghost} onClick={() => void onOpenBrowser()}>
+              使用浏览器归档
+            </button>
+          </div>
+        ) : null}
       </div>
 
       <div className={styles.body}>
@@ -269,6 +353,7 @@ export function WebArchiveWorkspace({ bridges, demoMode, task, onToast }: Props)
             <select className={styles.select} value={siteKey} onChange={(e) => setSiteKey(e.target.value)}>
               <option value="all">全部来源</option>
               <option value="zhihu">知乎</option>
+              <option value="xiaoheihe">小黑盒</option>
               <option value="generic">其他</option>
             </select>
             <button
@@ -397,8 +482,129 @@ export function WebArchiveWorkspace({ bridges, demoMode, task, onToast }: Props)
                   <MarkdownReader html={detail.bodyHtml} emptyMessage="正文不可用。" />
                 ) : null}
                 {tab === 'snapshot' ? (
-                  <div className={styles.empty}>
-                    高保真网页快照（MHTML / SingleFile）属于 P2，将在产品验收后实现。当前请使用「阅读正文」离线查看。
+                  <div className={styles.snapshotPanel}>
+                    {detail.hasSnapshot || detail.snapshotStatus === 'COMPLETE' ? (
+                      <>
+                        <p className={styles.snapshotLead}>
+                          已保存网页快照
+                          {detail.snapshotCapturedAt ? ` · ${formatTime(detail.snapshotCapturedAt)}` : ''}
+                          {detail.snapshotBytes != null ? ` · ${detail.snapshotBytes} 字节` : ''}
+                        </p>
+                        <p className={styles.hint}>
+                          快照尽量还原保存时的页面布局；动态评论与未加载资源可能缺失。离线预览会拦截外部网络请求。
+                        </p>
+                        {captures.length > 1 ? (
+                          <label className={styles.snapshotVersion}>
+                            捕获版本
+                            <select
+                              className={styles.select}
+                              value={captureId ?? ''}
+                              onChange={(e) => setCaptureId(Number(e.target.value) || null)}
+                            >
+                              {captures.map((c) => (
+                                <option key={c.id} value={c.id}>
+                                  v{c.version} · {formatTime(c.capturedAt)} · {c.captureMode} · 快照
+                                  {c.snapshotStatus}
+                                  {c.hasSnapshotFile ? '' : '（无文件）'}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        ) : null}
+                        <div className={styles.snapshotActions}>
+                          <button
+                            type="button"
+                            className={styles.primary}
+                            onClick={() => {
+                              if (demoMode || !bridges?.webArchive) return
+                              void callBridge(() =>
+                                bridges.webArchive.openSnapshotPreview(
+                                  JSON.stringify({ articleId: detail.id, captureId }),
+                                ),
+                              ).then((r) => {
+                                if (!r.ok) onToast('error', r.error?.message || '无法打开快照')
+                              })
+                            }}
+                          >
+                            查看网页快照
+                          </button>
+                          <button
+                            type="button"
+                            className={styles.ghost}
+                            onClick={() => {
+                              if (demoMode || !bridges?.webArchive) return
+                              void callBridge(() =>
+                                bridges.webArchive.openSnapshotFile(
+                                  JSON.stringify({ articleId: detail.id, captureId }),
+                                ),
+                              ).then((r) => {
+                                if (!r.ok) onToast('error', r.error?.message || '无法打开文件')
+                              })
+                            }}
+                          >
+                            打开本地文件
+                          </button>
+                          <button
+                            type="button"
+                            className={styles.ghost}
+                            onClick={() => {
+                              if (demoMode || !bridges?.webArchive) return
+                              void callBridge(() => bridges.webArchive.openLocalArchive(detail.id))
+                            }}
+                          >
+                            打开归档目录
+                          </button>
+                        </div>
+                      </>
+                    ) : detail.snapshotStatus === 'FAILED' ? (
+                      <>
+                        <p className={styles.snapshotLead}>网页快照未完成</p>
+                        <p className={styles.hint}>
+                          {detail.snapshotFailure || '快照保存失败。阅读正文仍可离线使用。'}
+                        </p>
+                        <div className={styles.snapshotActions}>
+                          <button type="button" className={styles.primary} onClick={() => setTab('read')}>
+                            打开现有阅读正文
+                          </button>
+                          <button
+                            type="button"
+                            className={styles.ghost}
+                            disabled={busy}
+                            onClick={() => {
+                              setUrl(detail.canonicalUrl)
+                              if (demoMode || !bridges?.tasks) return
+                              void callBridge(() => bridges.tasks.startWebArchive(detail.canonicalUrl)).then(
+                                (r) => {
+                                  if (!r.ok) onToast('error', r.error?.message || '无法开始归档')
+                                },
+                              )
+                            }}
+                          >
+                            重新归档以生成快照
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <p className={styles.snapshotLead}>此文章尚未保存网页快照。</p>
+                        <p className={styles.hint}>
+                          网页快照仅在浏览器捕获路径生成。可使用浏览器重新归档，或继续阅读已保存的正文。
+                        </p>
+                        <div className={styles.snapshotActions}>
+                          <button type="button" className={styles.primary} onClick={() => setTab('read')}>
+                            打开现有阅读正文
+                          </button>
+                          <button
+                            type="button"
+                            className={styles.ghost}
+                            disabled={busy}
+                            onClick={() => void onOpenBrowser()}
+                          >
+                            使用浏览器重新归档
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 ) : null}
                 {tab === 'info' ? (
@@ -414,6 +620,12 @@ export function WebArchiveWorkspace({ bridges, demoMode, task, onToast }: Props)
                     <dt>图片</dt>
                     <dd>
                       共 {detail.mediaTotal}，缺失 {detail.mediaMissing}
+                    </dd>
+                    <dt>网页快照</dt>
+                    <dd>
+                      {detail.snapshotStatus || 'NOT_CAPTURED'}
+                      {detail.snapshotBytes != null ? ` · ${detail.snapshotBytes} 字节` : ''}
+                      {detail.snapshotFailure ? ` · ${detail.snapshotFailure}` : ''}
                     </dd>
                     <dt>状态说明</dt>
                     <dd>{detail.failureMessage || detail.statusLabel}</dd>
