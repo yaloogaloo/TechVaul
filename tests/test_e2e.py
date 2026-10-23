@@ -95,16 +95,21 @@ def test_fresh_instance_launches_and_exits(tmp_path: Path) -> None:
     env.pop("TECHVAULT_DATABASE", None)
     env.pop("TECHVAULT_ARCHIVE_ROOT", None)
     env.pop("TECHVAULT_SLATE_SHELL_DEMO", None)
+    env.pop("TECHVAULT_README_IMAGE_ROOT", None)
     env["PYTHONPATH"] = str(Path(__file__).resolve().parents[1] / "src")
     env["LOCALAPPDATA"] = str(appdata)
+    env["TECHVAULT_DATA_DIR"] = str(appdata / "TechVault")
     env["QT_QPA_PLATFORM"] = "offscreen"
     env["TECHVAULT_SMOKE"] = "1"
+    env["PYTHONIOENCODING"] = "utf-8"
     completed = subprocess.run(
         [sys.executable, "-m", "techvault"],
         cwd=Path(__file__).resolve().parents[1],
         env=env,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=90,
         check=False,
     )
@@ -120,7 +125,7 @@ def test_fresh_instance_launches_and_exits(tmp_path: Path) -> None:
             row["version"]
             for row in connection.execute("SELECT version FROM schema_migrations ORDER BY version")
         ]
-        assert versions == [1, 2, 3, 4, 5, 6, 7, 8, 9]
+        assert versions == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
     finally:
         connection.close()
 

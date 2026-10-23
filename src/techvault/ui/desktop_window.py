@@ -16,8 +16,10 @@ from techvault.ui.bridge import (
     KnowledgeBridge,
     SettingsBridge,
     TaskBridge,
+    VideoBridge,
     WebArchiveBridge,
 )
+from techvault.readme_images.paths import resolve_readme_image_root
 from techvault.ui.web_scheme import DistSchemeHandler, app_index_url, frontend_dist_dir
 from techvault.web_archive.service import WebArchiveService
 
@@ -35,6 +37,7 @@ class DesktopWindow(QMainWindow):
         self.knowledge = KnowledgeBridge(context.documents, self)
         self.settings = SettingsBridge(context.settings, self)
         self.tasks = TaskBridge(context.database_path, self)
+        self.video = VideoBridge(context.connection, self)
         self.webArchive = WebArchiveBridge(
             WebArchiveService(context.connection),
             context.database_path,
@@ -46,7 +49,12 @@ class DesktopWindow(QMainWindow):
         # their own profiles; sharing defaultProfile with rapid OTR capture teardown
         # correlated with native AVs under DesktopWindow + capture concurrency.
         self._shell_profile = QWebEngineProfile("techvault-slate-shell", self)
-        self._handler = DistSchemeHandler(frontend_dist_dir(), self)
+        self._handler = DistSchemeHandler(
+            frontend_dist_dir(),
+            self,
+            media_root=resolve_readme_image_root(context.database_path),
+            archive_root_getter=context.settings.get_archive_root,
+        )
         self._shell_profile.installUrlSchemeHandler(b"techvault", self._handler)
 
         self.view = QWebEngineView(self)
@@ -66,6 +74,7 @@ class DesktopWindow(QMainWindow):
         channel.registerObject("settings", self.settings)
         channel.registerObject("tasks", self.tasks)
         channel.registerObject("webArchive", self.webArchive)
+        channel.registerObject("video", self.video)
         self._shell_page.setWebChannel(channel)
 
         self.setCentralWidget(self.view)

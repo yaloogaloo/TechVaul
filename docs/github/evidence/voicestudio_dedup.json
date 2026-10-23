@@ -1,0 +1,12 @@
+{
+  "url": "https://github.com/debpalash/VoiceStudio/raw/main/docs/logo.png",
+  "status": "OK",
+  "sha256": "c3f80e68559b9608966deeff759d5ad3282b5d1b07036186030a02bc53e5eec4",
+  "reused": true,
+  "stats": {
+    "objects": 12,
+    "bytes": 7867481,
+    "references": 0,
+    "duplicateHits": 1
+  }
+}

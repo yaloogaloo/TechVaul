@@ -13,6 +13,7 @@ from techvault.documents.service import DocumentService
 from techvault.ui.bridge._json import err, ok
 from techvault.ui.content_render import compose_readme_html
 from techvault.ui.i18n import validation_text
+from techvault.ui.tags import parse_tag_input
 
 _TYPE_LABELS = {
     "COMMAND": "命令",
@@ -56,7 +57,7 @@ class KnowledgeBridge(QObject):
         category_raw = payload.get("categoryId")
         category_id = None if category_raw in (None, "", "all", "null") else int(category_raw)
         tags_raw = payload.get("tags") or ""
-        tags = [part.strip() for part in str(tags_raw).split(",") if part.strip()] or None
+        tags = parse_tag_input(str(tags_raw)) or None
         try:
             if query.strip():
                 rows = self._documents.search_documents(
@@ -115,7 +116,7 @@ class KnowledgeBridge(QObject):
         category_id = None if category_raw in (None, "", "null") else int(category_raw)
         tags = payload.get("tags") or []
         if isinstance(tags, str):
-            tags = [part.strip() for part in tags.split(",") if part.strip()]
+            tags = parse_tag_input(tags)
         favorite = bool(payload.get("favorite") or False)
         document_id = payload.get("id")
         categories = {c.id: c.name for c in self._documents.list_categories()}

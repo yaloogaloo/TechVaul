@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from urllib.parse import urlparse
 
 _BEARER = re.compile(r"(?i)(authorization\s*[:=]\s*bearer\s+)\S+")
 _BEARER_WORD = re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._~+/=-]{8,}")
@@ -11,6 +12,18 @@ _QUERY_SECRET = re.compile(
 )
 _USERINFO = re.compile(r"(?i)(https?://[^/\s:@]+):([^@\s/]+)@")
 _GITHUB_TOKEN = re.compile(r"\b(?:ghp_|github_pat_|gho_|ghu_|ghs_|ghr_)[A-Za-z0-9_]+")
+
+
+def safe_host(url: str) -> str:
+    """Host fragment for logs — never include path, query, or credentials."""
+    try:
+        parsed = urlparse(url)
+        host = (parsed.hostname or "").lower()
+        if parsed.port:
+            host = f"{host}:{parsed.port}"
+        return host[:80]
+    except Exception:
+        return ""
 
 
 def redact(text: str) -> str:

@@ -1,0 +1,54 @@
+TV
+GitHub
+网页
+知识
+设置
+SLATE
+GitHub 项目
+全部分类
+未分类
+AI 工具
+最近更新
+项目名称
+所有者
+管理分类
+添加项目
+项目
+显示 1 / 2
+VoiceStudio
+debpalash/VoiceStudio
+Local voice studio
+已归档
+main
+VoiceStudio
+debpalash/VoiceStudio
+打开 GitHub
+打开本地
+更新项目
+
+Local voice studio
+
+分类
+未分类
+AI 工具
+本地存档可用
+尚未更新
+README
+版本与文件
+归档记录
+图片 12/12
+补全 README 图片
+VoiceStudio
+
+Open-source voice cloning, voice design, video dubbing, dictation, transcription & audiobook creation in 646 languages.
+
+Website · Download · Get started · Docs · Discord · 简体中文 · 日本語
+
+   
+
+Your voice. Your workflow.
+Create	Produce	Connect
+Clone a voice or design your own	Dub videos with timed speech	Local API & MCP for agents
+Dictate with a floating widget	Stories, audiobooks & batch jobs	Reusable recipes & watch folders
+
+Start with VoiceStudio (default, powered by k2-fsa/OmniVoice), or choose

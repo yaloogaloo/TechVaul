@@ -130,10 +130,26 @@ class LibraryService:
         )
 
     def set_repository_category(self, repository_id: int, category_id: int | None) -> None:
-        self._connection.execute(
-            "UPDATE repositories SET category_id = ? WHERE id = ?",
-            (category_id, repository_id),
-        )
+        row = self._connection.execute(
+            "SELECT id FROM repositories WHERE id = ?",
+            (repository_id,),
+        ).fetchone()
+        if row is None:
+            raise DatabaseError("Repository does not exist")
+        if category_id is not None:
+            category = self._connection.execute(
+                "SELECT id FROM repository_categories WHERE id = ?",
+                (category_id,),
+            ).fetchone()
+            if category is None:
+                raise DatabaseError("Repository category does not exist")
+        try:
+            self._connection.execute(
+                "UPDATE repositories SET category_id = ? WHERE id = ?",
+                (category_id, repository_id),
+            )
+        except sqlite3.IntegrityError as exc:
+            raise DatabaseError("Repository category does not exist") from exc
 
     def list_repositories(
         self,
@@ -143,30 +159,11 @@ class LibraryService:
         uncategorized: bool = False,
         sort: str = "recent",
     ) -> list[RepositoryListItem]:
-        clauses = ["1 = 1"]
-        params: list[object] = []
-        text = query.strip()
-        if text:
-            pattern = f"%{_escape_like(text)}%"
-            clauses.append(
-                """(
-                    r.name LIKE ? ESCAPE '\\'
-                    OR r.owner LIKE ? ESCAPE '\\'
-                    OR IFNULL(r.description, '') LIKE ? ESCAPE '\\'
-                    OR IFNULL(c.name, '') LIKE ? ESCAPE '\\'
-                    OR EXISTS (
-                        SELECT 1 FROM repository_topics topic
-                        WHERE topic.repository_id = r.id
-                          AND topic.name LIKE ? ESCAPE '\\'
-                    )
-                )"""
-            )
-            params.extend([pattern, pattern, pattern, pattern, pattern])
-        if uncategorized:
-            clauses.append("r.category_id IS NULL")
-        elif category_id is not None:
-            clauses.append("r.category_id = ?")
-            params.append(category_id)
+        clauses, params = _repository_filters(
+            query=query,
+            category_id=category_id,
+            uncategorized=uncategorized,
+        )
         order = {
             "name": "r.name COLLATE NOCASE, r.owner COLLATE NOCASE",
             "owner": "r.owner COLLATE NOCASE, r.name COLLATE NOCASE",
@@ -200,7 +197,7 @@ class LibraryService:
             LEFT JOIN repository_categories c ON c.id = r.category_id
             LEFT JOIN releases rel ON rel.id = r.current_release_id
             LEFT JOIN source_snapshots snap ON snap.id = r.current_snapshot_id
-            WHERE {' AND '.join(clauses)}
+            WHERE {clauses}
             ORDER BY {order}
             """,
             params,
@@ -442,6 +439,46 @@ class LibraryService:
         row = self._connection.execute("SELECT 1 FROM repositories LIMIT 1").fetchone()
         return row is not None
 
+    def count_archived_repositories(
+        self,
+        *,
+        query: str = "",
+        category_id: int | None = None,
+        uncategorized: bool = False,
+    ) -> tuple[int, int]:
+        """Return ``(archived_total, archived_matching_filters)``.
+
+        A repository counts once when its current source snapshot is COMPLETED
+        with a sha256, or its current release has a COMPLETED file with a sha256.
+        Snapshot rows, release rows, and in-progress metadata are not counted.
+        """
+        total = self._count_archived()
+        matched = self._count_archived(query=query, category_id=category_id, uncategorized=uncategorized)
+        return total, matched
+
+    def _count_archived(
+        self,
+        *,
+        query: str = "",
+        category_id: int | None = None,
+        uncategorized: bool = False,
+    ) -> int:
+        clauses, params = _repository_filters(
+            query=query,
+            category_id=category_id,
+            uncategorized=uncategorized,
+        )
+        row = self._connection.execute(
+            f"""
+            SELECT COUNT(*) AS n
+            FROM repositories r
+            LEFT JOIN repository_categories c ON c.id = r.category_id
+            WHERE {clauses} AND {_ARCHIVED_SQL}
+            """,
+            params,
+        ).fetchone()
+        return int(row["n"])
+
     def _next_sort(self) -> int:
         row = self._connection.execute(
             "SELECT COALESCE(MAX(sort_order), 0) + 1 AS next_sort FROM repository_categories"
@@ -520,6 +557,59 @@ def _settings_root(connection) -> Path:
     if row is None or not str(row["value"]).strip():
         return Path(".")
     return Path(row["value"])
+
+
+_ARCHIVED_SQL = """
+(
+    EXISTS (
+        SELECT 1 FROM source_snapshots s
+        WHERE s.id = r.current_snapshot_id
+          AND s.state = 'COMPLETED'
+          AND s.local_sha256 IS NOT NULL
+          AND length(s.local_sha256) = 64
+    )
+    OR EXISTS (
+        SELECT 1 FROM release_files f
+        WHERE f.release_id = r.current_release_id
+          AND f.state = 'COMPLETED'
+          AND f.local_sha256 IS NOT NULL
+          AND length(f.local_sha256) = 64
+    )
+)
+"""
+
+
+def _repository_filters(
+    *,
+    query: str,
+    category_id: int | None,
+    uncategorized: bool,
+) -> tuple[str, list[object]]:
+    clauses = ["1 = 1"]
+    params: list[object] = []
+    text = query.strip()
+    if text:
+        pattern = f"%{_escape_like(text)}%"
+        clauses.append(
+            """(
+                r.name LIKE ? ESCAPE '\\'
+                OR r.owner LIKE ? ESCAPE '\\'
+                OR IFNULL(r.description, '') LIKE ? ESCAPE '\\'
+                OR IFNULL(c.name, '') LIKE ? ESCAPE '\\'
+                OR EXISTS (
+                    SELECT 1 FROM repository_topics topic
+                    WHERE topic.repository_id = r.id
+                      AND topic.name LIKE ? ESCAPE '\\'
+                )
+            )"""
+        )
+        params.extend([pattern, pattern, pattern, pattern, pattern])
+    if uncategorized:
+        clauses.append("r.category_id IS NULL")
+    elif category_id is not None:
+        clauses.append("r.category_id = ?")
+        params.append(category_id)
+    return " AND ".join(clauses), params
 
 
 def _category_name(name: str) -> str:

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import sqlite3
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -37,7 +38,10 @@ class AppContext:
 
 
 def default_database_path() -> Path:
-    return _app_dir() / "techvault.sqlite"
+    candidate = default_data_dir() / "techvault.sqlite"
+    if os.environ.get("TECHVAULT_DATA_DIR", "").strip():
+        return candidate
+    return resolve_database_path(default_data_dir(), legacy_database=_user_data_dir() / "techvault.sqlite")
 
 
 def default_archive_root() -> Path:
@@ -84,7 +88,51 @@ def ensure_default_categories(service: DocumentService) -> None:
             service.create_category(name, index)
 
 
-def _app_dir() -> Path:
+def default_data_dir() -> Path:
+    """Writable application data directory.
+
+    A source checkout uses ``<repository>/data``. Installed runs use
+    ``%LOCALAPPDATA%\\TechVault`` or ``~/TechVault``. ``TECHVAULT_DATA_DIR``
+    overrides both. If the checkout database file is missing, startup still
+    opens an existing user-library file instead of creating an empty one.
+    """
+    override = os.environ.get("TECHVAULT_DATA_DIR", "").strip()
+    if override:
+        return Path(override).expanduser()
+    checkout = _source_checkout_root()
+    if checkout is not None:
+        return checkout / "data"
+    return _user_data_dir()
+
+
+def _source_checkout_root() -> Path | None:
+    if getattr(sys, "frozen", False):
+        return None
+    repo = Path(__file__).resolve().parents[3]
+    if (repo / "pyproject.toml").is_file() and (repo / "src" / "techvault").is_dir():
+        return repo
+    return None
+
+
+def _user_data_dir() -> Path:
     base = os.environ.get("LOCALAPPDATA")
     root = Path(base) if base else Path.home()
     return root / "TechVault"
+
+
+def resolve_database_path(data_dir: Path, *, legacy_database: Path | None = None) -> Path:
+    """Prefer the database in ``data_dir`` when that file already exists."""
+    candidate = Path(data_dir) / "techvault.sqlite"
+    if candidate.is_file():
+        return candidate
+    if (
+        legacy_database is not None
+        and legacy_database.is_file()
+        and legacy_database.resolve() != candidate.resolve()
+    ):
+        return legacy_database
+    return candidate
+
+
+def _app_dir() -> Path:
+    return default_data_dir()

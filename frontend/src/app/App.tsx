@@ -6,6 +6,7 @@ import { ToastStack, type ToastItem } from '../components/Toast'
 import { GitHubWorkspace } from '../features/github/GitHubWorkspace'
 import { KnowledgeWorkspace, type DirtyRegistrar } from '../features/knowledge/KnowledgeWorkspace'
 import { SettingsWorkspace } from '../features/settings/SettingsWorkspace'
+import { VideoWorkspace } from '../features/video/VideoWorkspace'
 import { WebArchiveWorkspace } from '../features/web/WebArchiveWorkspace'
 import { DEMO_TASK_IDLE } from '../features/github/demoData'
 import { connectBridges, callBridge, type Bridges } from '../services/qtBridge'
@@ -174,6 +175,9 @@ export function App() {
             onToast={onToast}
             registerDirty={registerDirty}
           />
+        ) : null}
+        {workspace === 'video' ? (
+          <VideoWorkspace bridges={bridges} demoMode={demoMode} task={task} onToast={onToast} />
         ) : null}
         {workspace === 'settings' ? (
           <SettingsWorkspace bridges={bridges} demoMode={demoMode} onToast={onToast} />

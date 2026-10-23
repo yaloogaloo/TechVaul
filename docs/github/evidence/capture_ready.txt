@@ -1,0 +1,2 @@
+ready=True
+url=techvault://app/index.html

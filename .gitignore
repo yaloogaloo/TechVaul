@@ -31,7 +31,25 @@ frontend/dist-ssr/
 # Local databases, credentials, and logs.
 *.sqlite
 *.sqlite3
+*.sqlite-wal
+*.sqlite-shm
 *.db
+
+# Source-checkout runtime data: database, archive root, and README image pool.
+/data/
+
+# Live video downloads stay out of git. Screenshots and JSON are stored separately.
+/tmp-video-live/
+/tmp-video-route/
+/tmp-video-ui/
+/tmp-cover-debug/
+/tmp-smoke-appdata/
+
+# Live-validation binaries and upstream README text. Screenshots and JSON stay.
+docs/github/evidence/voicestudio_pool/
+docs/github/evidence/capture_db/
+docs/github/evidence/voicestudio_readme.md
+docs/github/evidence/voicestudio_present.html
 .env
 .env.*
 *.log

@@ -2,6 +2,13 @@ from pathlib import Path
 
 from techvault.archive.paths import PathLayout
 from techvault.logging_setup import configure_logging
+from techvault.redact import safe_host
+
+
+def test_safe_host_omits_credentials_and_path() -> None:
+    assert safe_host("https://User:Pass@zhihu.com/path?token=1") == "zhihu.com"
+    assert safe_host("https://example.com:8443/x") == "example.com:8443"
+    assert safe_host("not a url") == ""
 
 
 def test_logs_redact_credentials(tmp_path: Path) -> None:

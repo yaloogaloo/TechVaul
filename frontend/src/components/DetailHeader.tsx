@@ -19,13 +19,25 @@ const UPDATE: Record<string, { label: string; color: string }> = {
 
 interface Props {
   detail: RepoDetail | null
+  categories: { id: string; label: string }[]
+  onCategory: (categoryId: string) => void
+  categorySaving?: boolean
   onUpdate: () => void
   onOpenGitHub: () => void
   onOpenLocal: () => void
   busy?: boolean
 }
 
-export function DetailHeader({ detail, onUpdate, onOpenGitHub, onOpenLocal, busy }: Props) {
+export function DetailHeader({
+  detail,
+  categories,
+  onCategory,
+  categorySaving,
+  onUpdate,
+  onOpenGitHub,
+  onOpenLocal,
+  busy,
+}: Props) {
   if (!detail) {
     return <div className={styles.empty}>选择左侧项目以查看详情与 README。</div>
   }
@@ -67,6 +79,22 @@ export function DetailHeader({ detail, onUpdate, onOpenGitHub, onOpenLocal, busy
         </div>
       ) : null}
       <div className={styles.statusRow}>
+        <label className={styles.categoryField}>
+          分类
+          <select
+            className={styles.categorySelect}
+            aria-label="项目分类"
+            value={detail.categoryId == null ? 'none' : String(detail.categoryId)}
+            disabled={categorySaving || busy}
+            onChange={(event) => onCategory(event.target.value)}
+          >
+            {categories.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+        </label>
         <span className={styles.statusItem}>
           <span className={styles.dot} style={{ background: local.color }} />
           {local.label}

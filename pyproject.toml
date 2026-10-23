@@ -17,6 +17,8 @@ dependencies = [
     "nh3>=0.2",
     "PySide6>=6.6",
     "readability-lxml>=0.8",
+    "yt-dlp==2026.10.21",
+    "yt-dlp-ejs==0.8.0",
 ]
 
 [project.optional-dependencies]

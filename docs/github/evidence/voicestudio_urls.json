@@ -1,0 +1,21 @@
+{
+  "full_name": "debpalash/VoiceStudio",
+  "default_branch": "main",
+  "description": "VoiceStudio is the open-source, fully-local ElevenLabs alternative — voice cloning, voice design, video dubbing, dictation, transcription & audiobook creation in 646 languages.",
+  "readme_chars": 8682,
+  "image_urls": [
+    "https://raw.githubusercontent.com/debpalash/VoiceStudio/main/docs/logo.png",
+    "https://trendshift.io/api/badge/repositories/28176",
+    "https://img.shields.io/github/actions/workflow/status/debpalash/VoiceStudio/ci.yml?branch=main",
+    "https://img.shields.io/github/v/release/debpalash/VoiceStudio",
+    "https://img.shields.io/badge/license-AGPL--3.0-blue",
+    "https://app.supermetry.com/px/zfjiv7psp4ed.svg?c=VoiceStudio&style=stats",
+    "https://raw.githubusercontent.com/debpalash/VoiceStudio/main/docs/media/electron/voicestudio.gif",
+    "https://raw.githubusercontent.com/debpalash/VoiceStudio/main/docs/media/electron/voice-cloning.png",
+    "https://raw.githubusercontent.com/debpalash/VoiceStudio/main/docs/media/electron/dubbing.png",
+    "https://raw.githubusercontent.com/debpalash/VoiceStudio/main/docs/media/electron/voice-design.png",
+    "https://raw.githubusercontent.com/debpalash/VoiceStudio/main/docs/media/electron/models.png",
+    "https://github.com/user-attachments/assets/b474497d-a453-49a3-a2dd-f023ec6b7659"
+  ],
+  "blocked": 0
+}

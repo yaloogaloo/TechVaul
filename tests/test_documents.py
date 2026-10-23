@@ -569,7 +569,7 @@ def test_migrations_apply_through_document_search(tmp_path: Path) -> None:
             row[0]
             for row in connection.execute("SELECT version FROM schema_migrations ORDER BY version")
         ]
-        assert versions == [1, 2, 3, 4, 5, 6, 7, 8, 9]
+        assert versions == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
         columns = {
             row[1]
             for row in connection.execute("PRAGMA table_info(documents)")

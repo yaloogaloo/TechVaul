@@ -29,6 +29,7 @@ export interface Bridges {
   settings: QtObject
   tasks: QtObject
   webArchive: QtObject
+  video: QtObject
 }
 
 let bridgesPromise: Promise<Bridges | null> | null = null
@@ -49,6 +50,7 @@ export function connectBridges(): Promise<Bridges | null> {
         settings: objects.settings,
         tasks: objects.tasks,
         webArchive: objects.webArchive,
+        video: objects.video,
       })
     })
   })

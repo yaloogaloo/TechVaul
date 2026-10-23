@@ -1,0 +1,12 @@
+tmp-video-live/archive/
+  videos/bilibili/BV1XTad6oEWe/
+    cover.jpg
+    metadata.json
+    旧手机畅玩Docker！无需刷机Root，PoDroid+1Panel安装使用指南.1080p.mp4
+  videos/youtube/jNQXAC9IVRw/
+    metadata.json
+    Me at the zoo.240p.mp4
+  _tmp/video/bilibili/BV1XTad6oEWe/_/
+    download.f30064.mp4.part
+  _tmp/video-preview/
+    <probe-token>.jpg

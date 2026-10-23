@@ -58,6 +58,21 @@ export interface RepoDetail extends RepoListItem {
   assets: { kind: string; status: string; message: string; retryable: boolean }[]
   readmeHtml: string
   readmeAvailable: boolean
+  readmeImages?: ReadmeImageSummary
+}
+
+export interface ReadmeImageSummary {
+  total: number
+  cached: number
+  failed: number
+  pending: number
+}
+
+export interface RepoListPage {
+  items: RepoListItem[]
+  hasRepositories: boolean
+  archivedCount: number
+  matchedArchivedCount: number
 }
 
 export interface Category {
@@ -80,7 +95,9 @@ export interface TaskState {
   message: string
   cancelable: boolean
   resultStatus?: string
-  kind?: 'github' | 'web'
+  kind?: 'github' | 'web' | 'video'
+  videoItemId?: number | null
+  videoPreview?: VideoPreview | null
   articleId?: number | null
   suggestBrowser?: boolean
   failureCode?: string | null
@@ -92,6 +109,69 @@ export interface TaskState {
   snapshotBytes?: number | null
   taskId?: string
   pageKind?: string
+}
+
+export interface VideoQuality {
+  key: string
+  label: string
+  height: number | null
+  container: string
+  vcodec: string
+  acodec: string
+  filesize: number | null
+  note: string
+}
+
+export interface VideoPreview {
+  identity: {
+    platform: string
+    platformVideoId: string
+    partKey: string
+    partIndex: number | null
+    canonicalUrl: string
+    displayName: string
+  }
+  title: string
+  uploader: string
+  duration: number | null
+  thumbnailUrl: string
+  qualities: VideoQuality[]
+  existing: {
+    id: number
+    status: string
+    quality: string
+    fileExists: boolean
+    fileSize: number | null
+  } | null
+  hasAudio: boolean
+}
+
+export interface VideoListItem {
+  id: number
+  platform: string
+  platformLabel: string
+  platformVideoId: string
+  partKey: string
+  title: string
+  uploader: string
+  duration: number | null
+  canonicalUrl: string
+  localStatus: string
+  fileExists: boolean
+  quality: string
+  container: string
+  height: number | null
+  fileSize: number | null
+  finishedAt: string
+  thumbnailUrl: string
+  relativePath: string
+  errorMessage?: string
+  vcodec?: string
+  acodec?: string
+  width?: number | null
+  hasVideo?: boolean
+  hasAudio?: boolean
+  requestedQuality?: string
 }
 
 export interface WebArticleListItem {

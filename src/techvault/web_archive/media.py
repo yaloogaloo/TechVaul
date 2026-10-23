@@ -10,6 +10,7 @@ from urllib.parse import unquote, urlparse
 
 import httpx
 
+from techvault.fsutil import atomic_replace
 from techvault.offline.links import _walk
 from techvault.web_archive.paths import WebPathLayout
 
@@ -93,7 +94,7 @@ def localize_article_images(
                             return None
                         handle.write(chunk)
             final.parent.mkdir(parents=True, exist_ok=True)
-            part.replace(final)
+            atomic_replace(part, final)
             return f"media/{final.name}", final
         except OSError:
             missing += 1

@@ -153,6 +153,7 @@ class ArchiveService:
                     layout,
                     int(stored["id"]),
                 )
+                self._cache_readme_images(int(stored["id"]), cancel_event, report)
         except TechVaultError as exc:
             logger.warning("Archive stopped code=%s", exc.code)
             return ArchiveResult(exc.code, user_message(exc.code))
@@ -211,6 +212,7 @@ class ArchiveService:
                 if asset == AssetKind.README:
                     report("Building offline page", "README", 0, 1)
                     page_status = build_offline_pages(self._connection, client, layout, int(stored["id"]))
+                    self._cache_readme_images(int(stored["id"]), cancel_event, report)
                     if page_status != PageStatus.COMPLETED:
                         return _result(self._connection, stored, "OFFLINE_PAGE_FAILED", layout)
                     index = layout.page_index_at(
@@ -262,6 +264,74 @@ class ArchiveService:
             logger.exception("Asset retry failed")
             return ArchiveResult("FAILED", user_message("FAILED"))
         return ArchiveResult("FAILED", user_message("FAILED"))
+
+    def backfill_readme_images(
+        self,
+        repository_id: int,
+        *,
+        cancel_event: Event | None = None,
+        on_progress=None,
+    ) -> ArchiveResult:
+        """Refresh README images for an existing repository without touching snapshots or releases."""
+        stored = self._connection.execute(
+            "SELECT id, full_name, html_url, current_snapshot_id, current_release_id FROM repositories WHERE id = ?",
+            (repository_id,),
+        ).fetchone()
+        if stored is None:
+            return ArchiveResult("FAILED", "项目不存在")
+
+        def report(operation: str, current_file: str, completed: int, total: int) -> None:
+            if on_progress is not None:
+                on_progress(operation, current_file, completed, total)
+
+        if cancel_event is not None and cancel_event.is_set():
+            return ArchiveResult("CANCELLED", user_message("CANCELLED"), repository_name=stored["full_name"])
+        try:
+            from techvault.readme_images.service import cache_repository_readme
+
+            report("缓存 README 图片", "README", 0, 1)
+            result = cache_repository_readme(
+                self._connection,
+                int(stored["id"]),
+                revalidate=True,
+                cancel_event=cancel_event,
+                on_progress=lambda done, total: report("缓存 README 图片", "README", done, total),
+            )
+        except Exception:
+            logger.exception("README image backfill failed")
+            return ArchiveResult("FAILED", "README 图片补全没有完成", repository_name=stored["full_name"])
+        if result.cancelled:
+            status = "CANCELLED"
+        elif result.failed:
+            status = "PARTIAL"
+        else:
+            status = "COMPLETED"
+        return ArchiveResult(status, result.message, repository_name=stored["full_name"], html_url=stored["html_url"])
+
+    def _cache_readme_images(self, repository_id: int, cancel_event: Event | None, report) -> None:
+        if cancel_event is not None and cancel_event.is_set():
+            return
+        try:
+            from techvault.readme_images.service import cache_repository_readme
+
+            report("缓存 README 图片", "README", 0, 1)
+            result = cache_repository_readme(
+                self._connection,
+                repository_id,
+                revalidate=True,
+                cancel_event=cancel_event,
+            )
+            logger.info(
+                "README image cache repository=%s total=%s cached=%s failed=%s reused=%s",
+                repository_id,
+                result.total,
+                result.cached,
+                result.failed,
+                result.reused,
+            )
+            report("缓存 README 图片", "README", 1, 1)
+        except Exception:
+            logger.exception("README image cache failed")
 
 
 def _token_or_none() -> str | None:

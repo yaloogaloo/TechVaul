@@ -11,8 +11,13 @@ from PySide6.QtGui import QDesktopServices
 from techvault.app.assets import load_asset_records
 from techvault.app.library import LibraryService
 from techvault.errors import DatabaseError
+from techvault.logging_setup import get_logger
+from techvault.readme_images.paths import resolve_readme_image_root
+from techvault.readme_images.service import present_github_readme
 from techvault.ui.bridge._json import err, ok
 from techvault.ui.content_render import compose_readme_html
+
+logger = get_logger()
 
 
 class GitHubBridge(QObject):
@@ -78,10 +83,17 @@ class GitHubBridge(QObject):
                     "state": item.state,
                 }
             )
+        archived, matched = self._library.count_archived_repositories(
+            query=query or "",
+            category_id=category_id,
+            uncategorized=uncategorized,
+        )
         return ok(
             {
                 "items": payload,
                 "hasRepositories": self._library.has_repositories(),
+                "archivedCount": archived,
+                "matchedArchivedCount": matched,
             }
         )
 
@@ -110,10 +122,14 @@ class GitHubBridge(QObject):
                 )
             except OSError:
                 pass
-        readme_html = compose_readme_html(
+        readme_html, readme_images = _present_readme(
             kind,
             body,
-            base=Path(base) if base else None,
+            base=base,
+            owner=detail.owner,
+            repo=detail.name,
+            branch=detail.default_branch,
+            image_root=resolve_readme_image_root(self._database_path),
         )
         snapshot = None
         if detail.snapshot is not None:
@@ -167,6 +183,7 @@ class GitHubBridge(QObject):
                 "assets": assets,
                 "readmeHtml": readme_html,
                 "readmeAvailable": bool(readme_html.strip()),
+                "readmeImages": readme_images,
             }
         )
 
@@ -196,9 +213,25 @@ class GitHubBridge(QObject):
 
     @Slot(int, str, result=str)
     def setRepositoryCategory(self, repository_id: int, category: str) -> str:  # noqa: N802
-        value = None if category in {"", "null", "none"} else int(category)
-        self._library.set_repository_category(int(repository_id), value)
-        return ok({"repositoryId": int(repository_id), "categoryId": value})
+        if category in {"", "null", "none"}:
+            value = None
+        else:
+            try:
+                value = int(category)
+            except (TypeError, ValueError):
+                return err("INVALID_CATEGORY", "分类无效")
+        try:
+            self._library.set_repository_category(int(repository_id), value)
+        except DatabaseError as exc:
+            return err("CATEGORY_ERROR", _category_error(str(exc)))
+        detail = self._library.get_repository(int(repository_id))
+        return ok(
+            {
+                "repositoryId": int(repository_id),
+                "categoryId": None if detail is None else detail.category_id,
+                "categoryName": "" if detail is None else detail.category_name,
+            }
+        )
 
     @Slot(int, result=str)
     def openGitHub(self, repository_id: int) -> str:  # noqa: N802
@@ -223,6 +256,43 @@ class GitHubBridge(QObject):
             return err("NOT_FOUND", "离线页面不可用")
         QDesktopServices.openUrl(QUrl.fromLocalFile(detail.offline_absolute))
         return ok({"path": detail.offline_absolute})
+
+
+def _present_readme(
+    kind: str,
+    body: str,
+    *,
+    base: str,
+    owner: str,
+    repo: str,
+    branch: str,
+    image_root,
+) -> tuple[str, dict[str, int]]:
+    empty = {"total": 0, "cached": 0, "failed": 0, "pending": 0}
+    try:
+        if kind in {"markdown", "html"} and body.strip():
+            return present_github_readme(
+                kind,
+                body,
+                owner=owner,
+                repo=repo,
+                branch=branch,
+                image_root=image_root,
+            )
+    except Exception:
+        logger.exception("README image presentation failed")
+    html = compose_readme_html(kind, body, base=Path(base) if base else None)
+    return html, empty
+
+
+def _category_error(message: str) -> str:
+    if "category does not exist" in message:
+        return "分类不存在"
+    if "Repository does not exist" in message:
+        return "项目不存在"
+    if "already exists" in message:
+        return "分类已存在"
+    return "无法保存分类"
 
 
 def _local_status(state: str, snapshot_ref: str, release_tag: str) -> str:

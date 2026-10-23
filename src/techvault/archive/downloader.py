@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import hashlib
-import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -12,6 +11,7 @@ from threading import Event
 import httpx
 
 from techvault.errors import ErrorCode, GitHubHTTPError
+from techvault.fsutil import atomic_replace
 from techvault.github.client import GitHubClient
 
 CHUNK_BYTES = 1024 * 1024
@@ -158,8 +158,7 @@ def download_release_file(
                     actual_size,
                 )
             digest_status = DigestStatus.MATCHED
-        request.final_path.parent.mkdir(parents=True, exist_ok=True)
-        os.replace(request.part_path, request.final_path)
+        atomic_replace(request.part_path, request.final_path)
         return DownloadResult(
             state=FileState.COMPLETED,
             failure_code=None,

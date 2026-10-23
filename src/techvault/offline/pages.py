@@ -12,6 +12,7 @@ from techvault.archive.downloader import FileState
 from techvault.archive.paths import PathLayout
 from techvault.archive.storage import repository_dir_for
 from techvault.errors import UnsafePathError
+from techvault.fsutil import atomic_replace
 from techvault.github.client import GitHubClient
 from techvault.logging_setup import get_logger
 from techvault.offline.gate import HtmlIntegrityError, assert_offline_html
@@ -251,8 +252,7 @@ def _store_readme_markdown(
         handle.write(text)
         handle.flush()
         os.fsync(handle.fileno())
-    final_path.parent.mkdir(parents=True, exist_ok=True)
-    os.replace(part, final_path)
+    atomic_replace(part, final_path)
 
 
 def _readme_fragment(client: GitHubClient, owner: str, repo: str) -> tuple[str, str | None]:
@@ -329,8 +329,7 @@ def _atomic_html(layout: PathLayout, page_id: int, final_path: Path, html: str) 
         handle.write(html)
         handle.flush()
         os.fsync(handle.fileno())
-    final_path.parent.mkdir(parents=True, exist_ok=True)
-    os.replace(part, final_path)
+    atomic_replace(part, final_path)
 
 
 def _repository_document(

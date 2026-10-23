@@ -25,7 +25,7 @@ def test_migration_applies_once(tmp_path: Path) -> None:
     try:
         first = apply_migrations(connection, default_migrations_dir())
         second = apply_migrations(connection, default_migrations_dir())
-        assert first == [1, 2, 3, 4, 5, 6, 7, 8, 9]
+        assert first == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
         assert second == []
         versions = [
             row[0]
@@ -33,7 +33,7 @@ def test_migration_applies_once(tmp_path: Path) -> None:
                 "SELECT version FROM schema_migrations ORDER BY version"
             )
         ]
-        assert versions == [1, 2, 3, 4, 5, 6, 7, 8, 9]
+        assert versions == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
     finally:
         connection.close()
 

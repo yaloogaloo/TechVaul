@@ -7,13 +7,13 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 import shutil
 import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
+from techvault.fsutil import atomic_replace
 from techvault.web_archive.paths import WebPathLayout
 
 # Snapshot status (independent from reading-edition ArchiveStatus).
@@ -141,7 +141,7 @@ def attach_mhtml_snapshot(
                 connection, article_id, part_check.message, preserve_previous=True
             )
             return MhtmlAttachResult(False, SNAPSHOT_FAILED, part_check.message)
-        os.replace(part_path, final_path)
+        atomic_replace(part_path, final_path)
     except OSError as exc:
         try:
             part_path.unlink(missing_ok=True)

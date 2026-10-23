@@ -121,15 +121,20 @@ window.context.close()
 def test_root_main_py_process_exits_cleanly(tmp_path: Path) -> None:
     env = os.environ.copy()
     env.pop("PYTHONPATH", None)
+    env.pop("TECHVAULT_DATA_DIR", None)
     env["LOCALAPPDATA"] = str(tmp_path / "appdata")
+    env["TECHVAULT_DATA_DIR"] = str(tmp_path / "appdata" / "TechVault")
     env["QT_QPA_PLATFORM"] = "offscreen"
     env["TECHVAULT_SMOKE"] = "1"
+    env["PYTHONIOENCODING"] = "utf-8"
     completed = subprocess.run(
         [sys.executable, str(MAIN_PY)],
         cwd=ROOT,
         env=env,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=90,
         check=False,
     )

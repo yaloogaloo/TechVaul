@@ -12,8 +12,10 @@ from PySide6.QtCore import QObject, QTimer, Signal, Slot
 from techvault.app.archive_service import ArchiveResult
 from techvault.archive.progress import ProgressEvent, format_bytes
 from techvault.logging_setup import get_logger
+from techvault.redact import safe_host
 from techvault.ui.archive_worker import ArchiveWorker
 from techvault.ui.bridge._json import err, ok
+from techvault.ui.video_worker import VideoDownloadWorker, VideoTaskResult
 from techvault.ui.i18n import operation_text, result_status_text
 from techvault.ui.web_archive_worker import WebArchiveWorker
 from techvault.web_archive.failure_codes import suggest_browser_capture
@@ -47,6 +49,7 @@ class TaskBridge(QObject):
         self._browser_ready_timer.setSingleShot(True)
         self._browser_ready_timer.timeout.connect(self._try_open_pending_browser)
         self._state = _idle_state()
+        self._github_mode = "archive"
 
     @Slot(result=str)
     def getTask(self) -> str:  # noqa: N802
@@ -90,7 +93,7 @@ class TaskBridge(QObject):
             "web_task start task_id=%s page_kind=%s url_host=%s",
             self._web_task_id,
             self._web_page_kind,
-            _safe_host(cleaned),
+            safe_host(cleaned),
         )
         self._state = {
             "active": True,
@@ -132,6 +135,147 @@ class TaskBridge(QObject):
             return err("INVALID_ASSET", "无法重试该资料")
         self._start_worker("", repository_id=int(repository_id), asset=asset, owner_repo="")
         return ok(self._state)
+
+    @Slot(int, result=str)
+    def backfillReadmeImages(self, repository_id: int) -> str:  # noqa: N802
+        if self._busy():
+            return err("BUSY", "已有归档任务正在运行")
+        self._start_worker(
+            "",
+            repository_id=int(repository_id),
+            asset=None,
+            owner_repo="",
+            mode="readme-images",
+        )
+        return ok(self._state)
+
+    @Slot(str, result=str)
+    def startVideoProbe(self, url: str) -> str:  # noqa: N802
+        if self._busy():
+            return err("BUSY", "已有归档任务正在运行")
+        cleaned = (url or "").strip()
+        if not cleaned:
+            return err("EMPTY_INPUT", "请输入视频链接或 BV 号")
+        self._start_video("probe", cleaned, "auto", False)
+        return ok(self._state)
+
+    @Slot(str, str, str, result=str)
+    def startVideoDownload(self, url: str, quality: str, replace: str) -> str:  # noqa: N802
+        if self._busy():
+            return err("BUSY", "已有归档任务正在运行")
+        cleaned = (url or "").strip()
+        if not cleaned:
+            return err("EMPTY_INPUT", "请输入视频链接或 BV 号")
+        self._start_video("download", cleaned, (quality or "auto").strip() or "auto", replace in {"1", "true", "yes"})
+        return ok(self._state)
+
+    def _start_video(self, mode: str, url: str, quality: str, replace: bool) -> None:
+        self._terminal_emitted = False
+        worker = VideoDownloadWorker(
+            self._database_path,
+            mode=mode,
+            url=url,
+            quality=quality,
+            replace=replace,
+        )
+        self._state = {
+            "active": True,
+            "ownerRepo": url,
+            "phase": "正在解析视频" if mode == "probe" else "正在准备下载",
+            "phaseCode": "FETCHING_METADATA",
+            "status": "running",
+            "progressKind": "indeterminate",
+            "percent": 0,
+            "bytesLabel": "",
+            "fileLabel": "",
+            "countLabel": "",
+            "message": "",
+            "cancelable": True,
+            "kind": "video",
+            "taskId": worker.task_id,
+            "videoItemId": None,
+            "videoPreview": None,
+            "failureCode": None,
+        }
+        self._emit()
+        worker.progress.connect(self._on_video_progress)
+        worker.completed.connect(self._on_video_completed)
+        self._worker = worker
+        worker.start()
+
+    @Slot(object)
+    def _on_video_progress(self, payload: object) -> None:
+        if self._terminal_emitted or not isinstance(payload, dict):
+            return
+        if payload.get("taskId") != self._state.get("taskId"):
+            return
+        phase = str(payload.get("phase") or "DOWNLOADING")
+        labels = {
+            "FETCHING_METADATA": "正在解析视频",
+            "DOWNLOADING": "正在下载",
+            "MERGING": "正在合并音视频",
+            "VERIFYING": "正在检查文件",
+            "PUBLISHING": "正在保存",
+        }
+        downloaded = payload.get("downloaded")
+        total = payload.get("total")
+        speed = payload.get("speed")
+        determinate = phase == "DOWNLOADING" and isinstance(downloaded, int) and isinstance(total, int) and total > 0
+        percent = int(downloaded * 100 / total) if determinate else 0
+        if isinstance(downloaded, int):
+            bytes_label = _video_bytes(downloaded, total if isinstance(total, int) else None, speed)
+        else:
+            bytes_label = ""
+        previous = self._state.get("phaseCode")
+        self._state = {
+            **self._state,
+            "active": True,
+            "phase": labels.get(phase, "正在处理视频"),
+            "phaseCode": phase,
+            "status": "cancelling" if self._state.get("status") == "cancelling" else "running",
+            "progressKind": "determinate" if determinate else "indeterminate",
+            "percent": percent,
+            "bytesLabel": bytes_label,
+            "cancelable": self._state.get("status") != "cancelling",
+        }
+        self._emit_throttled(min_interval_s=0.12, force=phase != previous or phase in {"MERGING", "VERIFYING", "PUBLISHING"})
+
+    @Slot(object)
+    def _on_video_completed(self, result: VideoTaskResult) -> None:
+        if result.task_id != self._state.get("taskId") or self._terminal_emitted:
+            return
+        self._terminal_emitted = True
+        if result.status == "READY":
+            status = "ready"
+            phase = "解析完成"
+        elif result.status == "COMPLETED":
+            status = "success"
+            phase = "视频已保存"
+        elif result.status == "CANCELLED":
+            status = "cancelled"
+            phase = "已取消"
+        else:
+            status = "failed"
+            phase = "解析失败" if self._state.get("phaseCode") == "FETCHING_METADATA" else "下载失败"
+        self._state = {
+            **self._state,
+            "active": False,
+            "phase": phase,
+            "phaseCode": "METADATA_READY" if result.status == "READY" else result.status,
+            "status": status,
+            "progressKind": "determinate" if status == "success" else "indeterminate",
+            "percent": 100 if status == "success" else 0,
+            "bytesLabel": "",
+            "message": result.message,
+            "cancelable": False,
+            "kind": "video",
+            "taskId": result.task_id,
+            "videoItemId": result.item_id,
+            "videoPreview": result.preview,
+            "failureCode": result.code or None,
+            "resultStatus": result.status,
+        }
+        self._emit()
 
     @Slot(result=str)
     def cancel(self) -> str:
@@ -210,11 +354,13 @@ class TaskBridge(QObject):
         repository_id: int | None,
         asset: str | None,
         owner_repo: str,
+        mode: str = "archive",
     ) -> None:
+        self._github_mode = mode
         self._state = {
             "active": True,
             "ownerRepo": owner_repo or url,
-            "phase": "正在准备",
+            "phase": "正在补全 README 图片" if mode == "readme-images" else "正在准备",
             "status": "running",
             "progressKind": "indeterminate",
             "percent": 0,
@@ -231,6 +377,7 @@ class TaskBridge(QObject):
             url,
             repository_id=repository_id,
             asset=asset,
+            mode=mode,
         )
         worker.progress.connect(self._on_progress)
         worker.detail.connect(self._on_detail)
@@ -306,10 +453,11 @@ class TaskBridge(QObject):
             "CANCELLED": "cancelled",
             "PARTIAL": "failed",
         }.get(result.status, "failed")
+        phase = result.message if self._github_mode == "readme-images" else result_status_text(result.status, result.message)
         self._state = {
             "active": False,
             "ownerRepo": result.repository_name or self._state.get("ownerRepo") or "",
-            "phase": result_status_text(result.status, result.message),
+            "phase": phase,
             "status": status,
             "progressKind": "determinate",
             "percent": 100 if status == "success" else 0,
@@ -380,7 +528,7 @@ class TaskBridge(QObject):
             "web_task browser_fallback task_id=%s page_kind=%s url_host=%s http_failure=%s",
             self._web_task_id,
             self._web_page_kind,
-            _safe_host(url),
+            safe_host(url),
             http_result.failure_code,
         )
 
@@ -684,6 +832,19 @@ class TaskBridge(QObject):
         self.taskChanged.emit(json.dumps(self._state, ensure_ascii=False))
 
 
+def _video_bytes(downloaded: int, total: int | None, speed: object) -> str:
+    from techvault.archive.progress import format_bytes
+
+    label = format_bytes(downloaded)
+    if total:
+        label = f"{label} / {format_bytes(total)}"
+    else:
+        label = f"已下载 {label}，大小未知"
+    if isinstance(speed, (int, float)) and speed > 0:
+        label = f"{label} · {format_bytes(int(speed))}/s"
+    return label
+
+
 def _idle_state() -> dict:
     return {
         "active": False,
@@ -702,11 +863,3 @@ def _idle_state() -> dict:
         "pageKind": "",
     }
 
-
-def _safe_host(url: str) -> str:
-    try:
-        from urllib.parse import urlparse
-
-        return urlparse(url).netloc.lower()[:80]
-    except Exception:
-        return ""

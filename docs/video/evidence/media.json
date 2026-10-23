@@ -1,0 +1,56 @@
+{
+  "database": "D:\\project\\TechVault\\tmp-video-live\\db.sqlite",
+  "archive": "D:\\project\\TechVault\\tmp-video-live\\archive",
+  "userDatabaseUntouched": {
+    "path": "D:\\project\\TechVault\\data\\techvault.sqlite",
+    "bytes": 1249280,
+    "lastWriteTime": "2026-10-23T14:10:22"
+  },
+  "downloads": [
+    {
+      "platform": "bilibili",
+      "input": "BV1XTad6oEWe",
+      "title": "旧手机畅玩Docker！无需刷机Root，PoDroid+1Panel安装使用指南",
+      "uploader": "在下莫老师",
+      "requestedQuality": "auto",
+      "height": 1080,
+      "container": "mp4",
+      "vcodec": "h264",
+      "acodec": "aac",
+      "durationSeconds": 480.32,
+      "bytes": 38565904,
+      "ffprobeFormat": "mov,mp4,m4a,3gp,3g2,mj2",
+      "streams": [
+        {"codec_type": "video", "codec": "h264", "width": 1920, "height": 1080},
+        {"codec_type": "audio", "codec": "aac"}
+      ]
+    },
+    {
+      "platform": "youtube",
+      "input": "https://www.youtube.com/watch?v=jNQXAC9IVRw",
+      "title": "Me at the zoo",
+      "uploader": "jawed",
+      "requestedQuality": "auto",
+      "height": 240,
+      "container": "mp4",
+      "vcodec": "h264",
+      "acodec": "aac",
+      "durationSeconds": 19.063583,
+      "bytes": 635505,
+      "ffprobeFormat": "mov,mp4,m4a,3gp,3g2,mj2",
+      "streams": [
+        {"codec_type": "video", "codec": "h264", "width": 320, "height": 240},
+        {"codec_type": "audio", "codec": "aac"}
+      ],
+      "qualityNote": "最高可用 240p。元数据没有给出文件大小，界面显示大小未知。"
+    }
+  ],
+  "cancel": {
+    "requestedQuality": "720",
+    "status": "CANCELLED",
+    "errorCode": "CANCELLED",
+    "publishedFileReplaced": false,
+    "stagingPartBytes": 12581888,
+    "currentDownloadRemainedCompleted1080": true
+  }
+}

@@ -5,7 +5,7 @@ import { MarkdownReader } from '../../components/MarkdownReader'
 import { RepositoryRow } from '../../components/RepositoryRow'
 import { WorkspaceHeader } from '../../components/WorkspaceHeader'
 import { callBridge, type Bridges } from '../../services/qtBridge'
-import type { Category, RepoDetail, RepoListItem, TaskState } from '../../types/bridge'
+import type { Category, RepoDetail, RepoListItem, RepoListPage, TaskState } from '../../types/bridge'
 import { AddRepoDialog } from './AddRepoDialog'
 import { ArchivePane } from './ArchivePane'
 import { CategoryDialog } from './CategoryDialog'
@@ -38,7 +38,11 @@ export function GitHubWorkspace({ bridges, demoMode, task, onTask }: Props) {
   const [addOpen, setAddOpen] = useState(false)
   const [catOpen, setCatOpen] = useState(false)
   const [error, setError] = useState('')
+  const [archivedCount, setArchivedCount] = useState(0)
+  const [matchedArchivedCount, setMatchedArchivedCount] = useState(0)
+  const [categorySaving, setCategorySaving] = useState(false)
   const [listOpen, setListOpen] = useState(true)
+  const demoItemsRef = useRef(DEMO_REPOS.map((item) => ({ ...item, topics: [...item.topics] })))
   const [narrow, setNarrow] = useState(false)
   const [listWidth, setListWidth] = useState(320)
   const dragRef = useRef<{ startX: number; startW: number } | null>(null)
@@ -52,10 +56,18 @@ export function GitHubWorkspace({ bridges, demoMode, task, onTask }: Props) {
     [categories],
   )
 
+  const applySelection = (rows: RepoListItem[]) => {
+    setItems(rows)
+    if (!rows.some((item) => item.id === selectedId)) {
+      setSelectedId(rows[0]?.id ?? null)
+    }
+  }
+
   const refreshList = useCallback(async () => {
     if (demoMode || !bridges) {
       const q = search.trim().toLowerCase()
-      let rows = [...DEMO_REPOS]
+      let rows = demoItemsRef.current.map((item) => ({ ...item, topics: [...item.topics] }))
+      const archivedRows = rows.filter((item) => item.localStatus === 'archived')
       if (category === 'none') rows = rows.filter((r) => !r.categoryId)
       else if (category !== 'all') rows = rows.filter((r) => String(r.categoryId) === category)
       if (q) {
@@ -66,27 +78,26 @@ export function GitHubWorkspace({ bridges, demoMode, task, onTask }: Props) {
             r.description.toLowerCase().includes(q),
         )
       }
+      const matched = rows.filter((item) => item.localStatus === 'archived')
       setCategories(DEMO_CATEGORIES)
-      setItems(rows)
-      setHasRepositories(DEMO_REPOS.length > 0)
-      if (!selectedId && rows[0]) setSelectedId(rows[0].id)
+      setArchivedCount(archivedRows.length)
+      setMatchedArchivedCount(matched.length)
+      setHasRepositories(demoItemsRef.current.length > 0)
+      applySelection(rows)
       return
     }
     const cats = await callBridge<Category[]>(() => bridges.github.listCategories())
     if (cats.ok && cats.data) setCategories(cats.data)
     const catArg = category === 'all' ? '' : category
-    const list = await callBridge<{ items: RepoListItem[]; hasRepositories: boolean }>(() =>
-      bridges.github.listRepositories(search, catArg, sort),
-    )
+    const list = await callBridge<RepoListPage>(() => bridges.github.listRepositories(search, catArg, sort))
     if (!list.ok || !list.data) {
       setError(list.error?.message || '无法加载项目列表')
       return
     }
-    setItems(list.data.items)
     setHasRepositories(list.data.hasRepositories)
-    if (list.data.items.length && !list.data.items.some((i) => i.id === selectedId)) {
-      setSelectedId(list.data.items[0].id)
-    }
+    setArchivedCount(list.data.archivedCount ?? 0)
+    setMatchedArchivedCount(list.data.matchedArchivedCount ?? 0)
+    applySelection(list.data.items)
   }, [bridges, demoMode, search, category, sort, selectedId])
 
   const refreshDetail = useCallback(async () => {
@@ -95,7 +106,13 @@ export function GitHubWorkspace({ bridges, demoMode, task, onTask }: Props) {
       return
     }
     if (demoMode || !bridges) {
-      setDetail(demoDetail(selectedId))
+      const row = demoItemsRef.current.find((item) => item.id === selectedId)
+      const next = demoDetail(selectedId)
+      if (next && row) {
+        next.categoryId = row.categoryId
+        next.categoryName = row.categoryName
+      }
+      setDetail(next)
       return
     }
     const result = await callBridge<RepoDetail>(() => bridges.github.getRepository(selectedId))
@@ -133,7 +150,8 @@ export function GitHubWorkspace({ bridges, demoMode, task, onTask }: Props) {
         const next = JSON.parse(payload) as TaskState
         onTask(next)
         // Only refresh library on terminal transitions — not every download tick.
-        if (!next.active && (next.status === 'success' || next.status === 'failed' || next.status === 'cancelled')) {
+        const terminal = next.status === 'success' || next.status === 'failed' || next.status === 'cancelled'
+        if (!next.active && terminal && (next.kind === 'github' || !next.kind)) {
           void refreshList()
           void refreshDetail()
         }
@@ -191,11 +209,63 @@ export function GitHubWorkspace({ bridges, demoMode, task, onTask }: Props) {
     else if (result.data) onTask(result.data)
   }
 
+  const assignCategory = async (nextCategory: string) => {
+    if (!detail) return
+    const previousId = detail.categoryId
+    const previousName = detail.categoryName
+    const nextId = nextCategory === 'none' ? null : Number(nextCategory)
+    const nextName =
+      nextId == null ? '' : categories.find((item) => item.id === nextId)?.name || detail.categoryName
+    if (demoMode || !bridges) {
+      demoItemsRef.current = demoItemsRef.current.map((item) =>
+        item.id === detail.id ? { ...item, categoryId: nextId, categoryName: nextName } : item,
+      )
+      setDetail({ ...detail, categoryId: nextId, categoryName: nextName })
+      await refreshList()
+      return
+    }
+    setCategorySaving(true)
+    setDetail({ ...detail, categoryId: nextId, categoryName: nextName })
+    const result = await callBridge<{ categoryId: number | null; categoryName: string }>(() =>
+      bridges.github.setRepositoryCategory(detail.id, nextCategory === 'none' ? 'none' : String(nextId)),
+    )
+    setCategorySaving(false)
+    if (!result.ok) {
+      setDetail((current) =>
+        current && current.id === detail.id
+          ? { ...current, categoryId: previousId, categoryName: previousName }
+          : current,
+      )
+      setError(result.error?.message || '无法保存分类')
+      return
+    }
+    setError('')
+    await refreshList()
+  }
+
+  const backfillImages = async () => {
+    if (!detail) return
+    if (demoMode || !bridges) {
+      setError('演示模式不会下载 README 图片')
+      return
+    }
+    const result = await callBridge<TaskState>(() => bridges.tasks.backfillReadmeImages(detail.id))
+    if (!result.ok) setError(result.error?.message || '无法补全 README 图片')
+    else if (result.data) onTask(result.data)
+  }
+
   const retryAsset = async (kind: string) => {
     if (!detail || !bridges || demoMode) return
     const result = await callBridge<TaskState>(() => bridges.tasks.retryAsset(detail.id, kind))
     if (!result.ok) setError(result.error?.message || '无法重试')
   }
+
+  const filtered = category !== 'all' || search.trim() !== ''
+  const countText = filtered ? `显示 ${matchedArchivedCount} / ${archivedCount}` : `已归档 ${archivedCount}`
+  const categoryChoices = categoryOptions.filter((item) => item.id !== 'all')
+  const imageSummary = detail?.readmeImages
+  const imageLabel =
+    imageSummary && imageSummary.total > 0 ? `图片 ${imageSummary.cached}/${imageSummary.total}` : ''
 
   const emptyText = !hasRepositories
     ? '还没有项目。点击「添加项目」开始归档。'
@@ -228,7 +298,12 @@ export function GitHubWorkspace({ bridges, demoMode, task, onTask }: Props) {
           }
           style={{ width: listWidth }}
         >
-          <div className={styles.listHead}>项目</div>
+          <div className={styles.listHead}>
+            <span>项目</span>
+            <span className={styles.listCount} title="已完成源码快照或 Release 文件的仓库数">
+              {countText}
+            </span>
+          </div>
           <div className={styles.list}>
             {emptyText ? <div className={styles.empty}>{emptyText}</div> : null}
             {items.map((item) => (
@@ -255,6 +330,9 @@ export function GitHubWorkspace({ bridges, demoMode, task, onTask }: Props) {
         <section className={styles.detail}>
           <DetailHeader
             detail={detail}
+            categories={categoryChoices}
+            onCategory={(value) => void assignCategory(value)}
+            categorySaving={categorySaving}
             busy={task.active}
             onUpdate={() => void updateSelected()}
             onOpenGitHub={() => {
@@ -268,10 +346,18 @@ export function GitHubWorkspace({ bridges, demoMode, task, onTask }: Props) {
             <>
               <ContentTabs active={tab} onChange={setTab} />
               {tab === 'readme' ? (
-                <MarkdownReader
-                  html={detail.readmeHtml}
-                  emptyMessage="尚未保存 README。归档完成后将在此显示排版内容。"
-                />
+                <>
+                  <div className={styles.readmeTools}>
+                    {imageLabel ? <span>{imageLabel}</span> : null}
+                    <button type="button" onClick={() => void backfillImages()} disabled={task.active}>
+                      补全 README 图片
+                    </button>
+                  </div>
+                  <MarkdownReader
+                    html={detail.readmeHtml}
+                    emptyMessage="尚未保存 README。归档完成后将在此显示排版内容。"
+                  />
+                </>
               ) : null}
               {tab === 'versions' ? <VersionsPane detail={detail} onRetry={(k) => void retryAsset(k)} /> : null}
               {tab === 'archive' ? (

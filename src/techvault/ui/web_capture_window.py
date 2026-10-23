@@ -29,6 +29,7 @@ from PySide6.QtWidgets import (
 from techvault.app.settings import SettingsService
 from techvault.db.connection import connect
 from techvault.logging_setup import get_logger
+from techvault.redact import safe_host
 from techvault.ui.mhtml_saver import MhtmlSaveController, MhtmlSaveOutcome
 from techvault.web_archive.browser_profile import clear_zhihu_session, zhihu_profile_dir
 from techvault.web_archive.capture import publish_from_rendered_html
@@ -760,7 +761,7 @@ class WebCaptureWindow(QMainWindow):
             "web_capture stage_enter task_id=%s stage=%s url_host=%s",
             self._task_id,
             code,
-            _safe_host(self._initial_url),
+            safe_host(self._initial_url),
         )
 
     def _emit_phase(self, text: str, code: str = "") -> None:
@@ -777,7 +778,7 @@ class WebCaptureWindow(QMainWindow):
             "web_capture diag task_id=%s event=%s url_host=%s window_alive=%s %s",
             self._task_id,
             event,
-            _safe_host(self._initial_url),
+            safe_host(self._initial_url),
             self._window_alive(),
             parts,
         )
@@ -792,7 +793,7 @@ class WebCaptureWindow(QMainWindow):
     def _diag_snapshot(self, *, capture_callback: bool) -> dict:
         return {
             "task_id": self._task_id,
-            "url_host": _safe_host(self._initial_url),
+            "url_host": safe_host(self._initial_url),
             "page_type": self._last_page_type,
             "load_started": self._load_started,
             "load_ok_seen": self._load_ok_seen,
@@ -805,12 +806,3 @@ class WebCaptureWindow(QMainWindow):
             "window_alive": self._window_alive(),
             "stages": list(self._stage_entered_at.keys()),
         }
-
-
-def _safe_host(url: str) -> str:
-    try:
-        from urllib.parse import urlparse
-
-        return urlparse(url).netloc.lower()[:80]
-    except Exception:
-        return ""

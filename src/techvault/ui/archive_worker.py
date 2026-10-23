@@ -27,12 +27,14 @@ class ArchiveWorker(QThread):
         *,
         repository_id: int | None = None,
         asset: str | None = None,
+        mode: str = "archive",
     ) -> None:
         super().__init__()
         self._database_path = Path(database_path)
         self._url = url
         self._repository_id = repository_id
         self._asset = asset
+        self._mode = mode
         self._cancel = Event()
         self.thread_marker: QThread | None = None
 
@@ -44,7 +46,13 @@ class ArchiveWorker(QThread):
         connection = connect(self._database_path)
         try:
             service = ArchiveService(connection)
-            if self._asset and self._repository_id is not None:
+            if self._mode == "readme-images" and self._repository_id is not None:
+                result = service.backfill_readme_images(
+                    self._repository_id,
+                    cancel_event=self._cancel,
+                    on_progress=self._emit_progress,
+                )
+            elif self._asset and self._repository_id is not None:
                 result = service.retry_failed_asset(
                     self._repository_id,
                     self._asset,

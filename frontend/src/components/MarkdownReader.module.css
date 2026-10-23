@@ -99,6 +99,16 @@
   border-radius: var(--radius);
 }
 
+.inner :global(.tv-img-missing) {
+  display: inline-block;
+  margin: 4px 0;
+  padding: 4px 8px;
+  border: 1px dashed var(--border-subtle);
+  border-radius: var(--radius);
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
 .empty {
   color: var(--text-secondary);
   padding: 32px 8px;
