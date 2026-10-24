@@ -1,4 +1,5 @@
 .bar {
+  flex: 0 0 var(--taskbar-height);
   height: var(--taskbar-height);
   min-height: var(--taskbar-height);
   border-top: 1px solid var(--border-subtle);

@@ -162,26 +162,28 @@ export function App() {
     <div className={styles.shell}>
       <NavigationRail active={workspace} onChange={requestWorkspace} />
       <div className={styles.main}>
-        {workspace === 'github' ? (
-          <GitHubWorkspace bridges={bridges} demoMode={demoMode} task={task} onTask={setTask} />
-        ) : null}
-        {workspace === 'web' ? (
-          <WebArchiveWorkspace bridges={bridges} demoMode={demoMode} task={task} onToast={onToast} />
-        ) : null}
-        {workspace === 'knowledge' ? (
-          <KnowledgeWorkspace
-            bridges={bridges}
-            demoMode={demoMode}
-            onToast={onToast}
-            registerDirty={registerDirty}
-          />
-        ) : null}
-        {workspace === 'video' ? (
-          <VideoWorkspace bridges={bridges} demoMode={demoMode} task={task} onToast={onToast} />
-        ) : null}
-        {workspace === 'settings' ? (
-          <SettingsWorkspace bridges={bridges} demoMode={demoMode} onToast={onToast} />
-        ) : null}
+        <div className={styles.workspace}>
+          {workspace === 'github' ? (
+            <GitHubWorkspace bridges={bridges} demoMode={demoMode} task={task} onTask={setTask} />
+          ) : null}
+          {workspace === 'web' ? (
+            <WebArchiveWorkspace bridges={bridges} demoMode={demoMode} task={task} onToast={onToast} />
+          ) : null}
+          {workspace === 'knowledge' ? (
+            <KnowledgeWorkspace
+              bridges={bridges}
+              demoMode={demoMode}
+              onToast={onToast}
+              registerDirty={registerDirty}
+            />
+          ) : null}
+          {workspace === 'video' ? (
+            <VideoWorkspace bridges={bridges} demoMode={demoMode} task={task} onToast={onToast} />
+          ) : null}
+          {workspace === 'settings' ? (
+            <SettingsWorkspace bridges={bridges} demoMode={demoMode} onToast={onToast} />
+          ) : null}
+        </div>
         <TaskBar
           task={task}
           onCancel={() => {

@@ -13,9 +13,10 @@ export function MarkdownReader({ html, emptyMessage }: Props) {
       </div>
     )
   }
+  const readable = html.replace(/<table\b[\s\S]*?<\/table>/gi, (table) => `<div class="${styles.tableScroll}">${table}</div>`)
   return (
     <div className={styles.wrap}>
-      <article className={styles.inner} dangerouslySetInnerHTML={{ __html: html }} />
+      <article className={styles.inner} dangerouslySetInnerHTML={{ __html: readable }} />
     </div>
   )
 }
